@@ -151,7 +151,7 @@ class SocialSentimentService:
 
     def fetch_reddit_report(self, ticker: str) -> Optional[Dict]:
         """Fetch detailed Reddit report for a single ticker."""
-        url = f"{self._api_url}/reddit/stocks/v1/report/{ticker.upper()}"
+        url = f"{self._api_url}/reddit/stocks/v1/stock/{ticker.upper()}"
         return self._fetch_json(url)
 
     def fetch_reddit_trending(self) -> Optional[List[Dict]]:
