@@ -48,7 +48,7 @@ def _make_config(**kwargs) -> Config:
         telegram_bot_token=None,
         telegram_chat_id=None,
         email_sender=None,
-        email_password=None,
+        resend_api_key=None,
         pushover_user_key=None,
         pushover_api_token=None,
         pushplus_token=None,
@@ -550,8 +550,8 @@ class TestValidateStructuredNotification:
     @pytest.mark.parametrize(
         ("kwargs", "missing_field"),
         [
-            ({"email_sender": "sender@example.com", "email_password": None}, "EMAIL_PASSWORD"),
-            ({"email_sender": None, "email_password": "app-password"}, "EMAIL_SENDER"),
+            ({"email_sender": "sender@example.com", "resend_api_key": None}, "RESEND_API_KEY"),
+            ({"email_sender": None, "resend_api_key": "re_xxx"}, "EMAIL_SENDER"),
         ],
     )
     def test_validate_incomplete_email_config_reports_error(self, kwargs, missing_field):

@@ -115,7 +115,7 @@ class StatusCommand(BotCommand):
         status["notify_wechat"] = bool(config.wechat_webhook_url)
         status["notify_feishu"] = bool(config.feishu_webhook_url)
         status["notify_telegram"] = bool(config.telegram_bot_token and config.telegram_chat_id)
-        status["notify_email"] = bool(config.email_sender and config.email_password)
+        status["notify_email"] = bool(config.email_sender and config.resend_api_key)
         status["notify_custom"] = bool(getattr(config, "custom_webhook_urls", []))
         status["notify_discord"] = bool(
             getattr(config, "discord_webhook_url", None)

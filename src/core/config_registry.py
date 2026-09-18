@@ -2191,36 +2191,9 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     # ------------------------------------------------------------------
     # Notification – Email
     # ------------------------------------------------------------------
-    "EMAIL_SENDER": {
-        "title": "Email Sender",
-        "description": "Sender email address (SMTP host auto-detected).",
-        "category": "notification",
-        "data_type": "string",
-        "ui_control": "text",
-        "is_sensitive": False,
-        "is_required": False,
-        "is_editable": True,
-        "default_value": None,
-        "options": [],
-        "validation": {},
-        "display_order": 25,
-        "help_key": "settings.notification.email",
-        "examples": [
-            "EMAIL_SENDER=sender@example.com",
-            "EMAIL_PASSWORD=your_smtp_authorization_code",
-            "EMAIL_RECEIVERS=user1@example.com,user2@example.com",
-        ],
-        "docs": [
-            {
-                "label": "完整指南：邮件",
-                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/full-guide.md#邮件",
-            },
-        ],
-        "warning_codes": [],
-    },
-    "EMAIL_PASSWORD": {
-        "title": "Email Password",
-        "description": "Email password or app-specific authorization code.",
+    "RESEND_API_KEY": {
+        "title": "Resend API Key",
+        "description": "Resend API key (re_...) from https://resend.com/api-keys.",
         "category": "notification",
         "data_type": "string",
         "ui_control": "password",
@@ -2233,7 +2206,8 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "display_order": 26,
         "help_key": "settings.notification.email",
         "examples": [
-            "EMAIL_PASSWORD=your_smtp_authorization_code",
+            "RESEND_API_KEY=re_xxxxxxxxx",
+            "EMAIL_RECEIVERS=user1@example.com,user2@example.com",
         ],
         "docs": [
             {
@@ -2241,7 +2215,32 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
                 "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/full-guide.md#邮件",
             },
         ],
-        "warning_codes": ["secret_value", "smtp_authorization_code"],
+        "warning_codes": ["secret_value"],
+    },
+    "EMAIL_SENDER": {
+        "title": "Email Sender (Resend)",
+        "description": "Sender address on a domain verified in the Resend console, e.g. reports@example.com.",
+        "category": "notification",
+        "data_type": "string",
+        "ui_control": "text",
+        "is_sensitive": False,
+        "is_required": False,
+        "is_editable": True,
+        "default_value": None,
+        "options": [],
+        "validation": {},
+        "display_order": 25,
+        "help_key": "settings.notification.email",
+        "examples": [
+            "EMAIL_SENDER=reports@example.com",
+        ],
+        "docs": [
+            {
+                "label": "完整指南：邮件",
+                "href": "https://github.com/ZhuLinsen/daily_stock_analysis/blob/main/docs/full-guide.md#邮件",
+            },
+        ],
+        "warning_codes": [],
     },
     "EMAIL_RECEIVERS": {
         "title": "Email Receivers",

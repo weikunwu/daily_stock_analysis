@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import os
+import smtplib
 import sys
 import unittest
 from email.header import decode_header, make_header
@@ -963,18 +964,50 @@ class TestFeishuSender(unittest.TestCase):
 
 
 class TestEmailSender(unittest.TestCase):
-    """Unit tests for EmailSender (config and receiver logic; send path covered via service)."""
+    """Unit tests for EmailSender (Resend SMTP relay: config, credentials, receiver logic)."""
 
     def test_send_returns_false_when_not_configured(self):
-        cfg = _config()
+        with mock.patch("smtplib.SMTP_SSL") as mock_smtp_ssl:
+            sender = EmailSender(_config())
+            self.assertFalse(sender.send_to_email("body"))
+            mock_smtp_ssl.assert_not_called()
+
+    @mock.patch("smtplib.SMTP_SSL")
+    def test_send_uses_resend_smtp_relay_credentials(self, mock_smtp_ssl):
+        cfg = _config(
+            email_sender="reports@example.com",
+            resend_api_key="re_test",
+            email_receivers=["b@example.com"],
+        )
         sender = EmailSender(cfg)
+
         result = sender.send_to_email("body")
-        self.assertFalse(result)
+
+        self.assertTrue(result)
+        mock_smtp_ssl.assert_called_once_with("smtp.resend.com", 465, timeout=30)
+        server = mock_smtp_ssl.return_value
+        server.login.assert_called_once_with("resend", "re_test")
+        server.send_message.assert_called_once()
+        server.quit.assert_called_once()
+
+    @mock.patch("smtplib.SMTP_SSL")
+    def test_send_auth_failure_returns_false(self, mock_smtp_ssl):
+        server = mock_smtp_ssl.return_value
+        server.login.side_effect = smtplib.SMTPAuthenticationError(535, "auth failed")
+        cfg = _config(
+            email_sender="reports@example.com",
+            resend_api_key="re_bad",
+            email_receivers=["b@example.com"],
+        )
+        sender = EmailSender(cfg)
+
+        self.assertFalse(sender.send_to_email("body"))
+        server.send_message.assert_not_called()
 
     def test_get_receivers_for_stocks_no_groups_returns_default(self):
         cfg = _config(
-            email_sender="a@qq.com",
-            email_password="p",
+            email_sender="a@example.com",
+            resend_api_key="re_test",
             email_receivers=["b@qq.com", "c@qq.com"],
         )
         sender = EmailSender(cfg)
@@ -985,8 +1018,8 @@ class TestEmailSender(unittest.TestCase):
 
     def test_get_receivers_for_stocks_with_matching_group(self):
         cfg = _config(
-            email_sender="a@qq.com",
-            email_password="p",
+            email_sender="a@example.com",
+            resend_api_key="re_test",
             email_receivers=["default@qq.com"],
             stock_email_groups=[(["000001", "600519"], ["group1@qq.com"])],
         )
@@ -998,8 +1031,8 @@ class TestEmailSender(unittest.TestCase):
 
     def test_get_receivers_for_stocks_no_match_falls_back_to_default(self):
         cfg = _config(
-            email_sender="a@qq.com",
-            email_password="p",
+            email_sender="a@example.com",
+            resend_api_key="re_test",
             email_receivers=["default@qq.com"],
             stock_email_groups=[(["000001"], ["group@qq.com"])],
         )
@@ -1011,8 +1044,8 @@ class TestEmailSender(unittest.TestCase):
 
     def test_get_all_email_receivers_returns_union(self):
         cfg = _config(
-            email_sender="a@qq.com",
-            email_password="p",
+            email_sender="a@example.com",
+            resend_api_key="re_test",
             email_receivers=["default@qq.com"],
             stock_email_groups=[
                 (["000001"], ["g1@qq.com"]),
@@ -1028,9 +1061,9 @@ class TestEmailSender(unittest.TestCase):
     @mock.patch("smtplib.SMTP_SSL")
     def test_send_to_email_encodes_non_ascii_sender_name(self, mock_smtp_ssl):
         cfg = _config(
-            email_sender="a@qq.com",
-            email_password="p",
-            email_receivers=["b@qq.com"],
+            email_sender="a@example.com",
+            resend_api_key="re_test",
+            email_receivers=["b@example.com"],
             email_sender_name="daily_stock_analysis股票分析助手",
         )
         sender = EmailSender(cfg)
@@ -1042,7 +1075,7 @@ class TestEmailSender(unittest.TestCase):
         server.send_message.assert_called_once()
         msg = server.send_message.call_args[0][0]
         realname, addr = parseaddr(msg["From"])
-        self.assertEqual(addr, "a@qq.com")
+        self.assertEqual(addr, "a@example.com")
         self.assertEqual(
             str(make_header(decode_header(realname))),
             "daily_stock_analysis股票分析助手",
@@ -1052,9 +1085,9 @@ class TestEmailSender(unittest.TestCase):
     @mock.patch("smtplib.SMTP_SSL")
     def test_send_to_email_strips_hidden_market_metadata(self, mock_smtp_ssl):
         cfg = _config(
-            email_sender="a@qq.com",
-            email_password="p",
-            email_receivers=["b@qq.com"],
+            email_sender="a@example.com",
+            resend_api_key="re_test",
+            email_receivers=["b@example.com"],
         )
         sender = EmailSender(cfg)
 
@@ -1069,21 +1102,21 @@ class TestEmailSender(unittest.TestCase):
     @mock.patch("smtplib.SMTP_SSL")
     def test_send_image_email_encodes_non_ascii_sender_name(self, mock_smtp_ssl):
         cfg = _config(
-            email_sender="a@qq.com",
-            email_password="p",
-            email_receivers=["b@qq.com"],
+            email_sender="a@example.com",
+            resend_api_key="re_test",
+            email_receivers=["b@example.com"],
             email_sender_name="daily_stock_analysis股票分析助手",
         )
         sender = EmailSender(cfg)
 
-        result = sender._send_email_with_inline_image(b"PNG_BYTES", receivers=["b@qq.com"])
+        result = sender._send_email_with_inline_image(b"PNG_BYTES", receivers=["b@example.com"])
 
         self.assertTrue(result)
         server = mock_smtp_ssl.return_value
         server.send_message.assert_called_once()
         msg = server.send_message.call_args[0][0]
         realname, addr = parseaddr(msg["From"])
-        self.assertEqual(addr, "a@qq.com")
+        self.assertEqual(addr, "a@example.com")
         self.assertEqual(
             str(make_header(decode_header(realname))),
             "daily_stock_analysis股票分析助手",

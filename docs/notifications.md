@@ -10,7 +10,7 @@
 | 企业微信 | 静态配置 | `WECHAT_WEBHOOK_URL` | `WECHAT_MSG_TYPE` | 配置后参与批量通知发送 |
 | 飞书 Webhook / App Bot | 静态配置 | `FEISHU_WEBHOOK_URL` 或 `FEISHU_APP_ID` + `FEISHU_APP_SECRET` + `FEISHU_CHAT_ID` | `FEISHU_WEBHOOK_SECRET`, `FEISHU_WEBHOOK_KEYWORD`, `FEISHU_RECEIVE_ID_TYPE`, `FEISHU_DOMAIN` | Webhook URL 优先；未配置 Webhook 时，App Bot 三元组可主动向指定群/用户推送。`FEISHU_STREAM_ENABLED` 仅代表事件订阅 / Stream Bot，不参与主动通知配置完成判断 |
 | Telegram | 静态配置 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `TELEGRAM_MESSAGE_THREAD_ID` | token 与 chat id 必须同时存在 |
-| 邮件 | 静态配置 | `EMAIL_SENDER`, `EMAIL_PASSWORD` | `EMAIL_RECEIVERS`, `EMAIL_SENDER_NAME` | `EMAIL_RECEIVERS` 留空时发给自己 |
+| 邮件 | 静态配置 | `EMAIL_SENDER`, `RESEND_API_KEY` | `EMAIL_RECEIVERS`, `EMAIL_SENDER_NAME` | 通过 Resend SMTP 中继（smtp.resend.com:465，密码为 API Key）发送；`EMAIL_SENDER` 必须是已验证域名地址；`EMAIL_RECEIVERS` 留空时发给自己 |
 | Pushover | 静态配置 | `PUSHOVER_USER_KEY`, `PUSHOVER_API_TOKEN` | - | 两个 key 必须同时存在 |
 | ntfy | 静态配置 | `NTFY_URL` | `NTFY_TOKEN`, `WEBHOOK_VERIFY_SSL` | `NTFY_URL` 必须包含 topic path，例如 `https://ntfy.sh/my-topic` |
 | Gotify | 静态配置 | `GOTIFY_URL`, `GOTIFY_TOKEN` | `WEBHOOK_VERIFY_SSL` | `GOTIFY_URL` 是 server base URL，不包含 `/message`；token 通过 `X-Gotify-Key` Header 发送 |
@@ -70,10 +70,10 @@ Discord 长报告发送复用现有分片链路：单条 `content` 运行时不�
 | `TELEGRAM_BOT_TOKEN` | minimal | telegram | Secret | - |
 | `TELEGRAM_CHAT_ID` | minimal | telegram | Secret | - |
 | `TELEGRAM_MESSAGE_THREAD_ID` | advanced | telegram | Secret | - |
-| `EMAIL_SENDER` | minimal | email | Variable or Secret | - |
-| `EMAIL_PASSWORD` | minimal | email | Secret | - |
-| `EMAIL_RECEIVERS` | advanced | email | Variable or Secret | - |
-| `EMAIL_SENDER_NAME` | advanced | email | Variable or Secret | `daily_stock_analysis股票分析助手` |
+| `EMAIL_SENDER` | minimal | email | Secret | - |
+| `RESEND_API_KEY` | minimal | email | Secret | - |
+| `EMAIL_RECEIVERS` | advanced | email | Secret | - |
+| `EMAIL_SENDER_NAME` | advanced | email | Secret | `daily_stock_analysis股票分析助手` |
 | `PUSHOVER_USER_KEY` | minimal | pushover | Secret | - |
 | `PUSHOVER_API_TOKEN` | minimal | pushover | Secret | - |
 | `NTFY_URL` | minimal | ntfy | Secret | - |
@@ -318,7 +318,7 @@ Docker 场景可通过 `--env-file .env` / Compose `env_file` 注入通知相关
 
 默认 `00-daily-analysis.yml` 只读取表格中显式映射的 Secret / Variable。新增 repository Secret 或 Variable 后，只有变量名已经出现在 workflow `env:` 中才会进入运行进程；`STOCK_GROUP_N` / `EMAIL_GROUP_N` 这类任意编号变量不会自动导入。
 
-Secret 适合 token、password、webhook URL 等敏感项；Variable 适合 `WECHAT_MSG_TYPE`、`EMAIL_SENDER_NAME`、路由、降噪窗口和时区这类非敏感行为配置。`MARKDOWN_TO_IMAGE_CHANNELS` 与 `MERGE_EMAIL_NOTIFICATION` 默认不映射，如需在自己的 fork 中使用，应显式修改 workflow 并补充对应测试。
+Secret 适合 token、password、webhook URL 等敏感项；Variable 适合 `WECHAT_MSG_TYPE`、路由、降噪窗口和时区这类非敏感行为配置。邮件渠道（`EMAIL_SENDER` / `RESEND_API_KEY` / `EMAIL_RECEIVERS` / `EMAIL_SENDER_NAME`）在默认 workflow 中统一只读 Secret。`MARKDOWN_TO_IMAGE_CHANNELS` 与 `MERGE_EMAIL_NOTIFICATION` 默认不映射，如需在自己的 fork 中使用，应显式修改 workflow 并补充对应测试。
 
 ## Desktop
 

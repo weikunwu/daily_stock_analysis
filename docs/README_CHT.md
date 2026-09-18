@@ -101,7 +101,7 @@
 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | Telegram |
 | `DISCORD_WEBHOOK_URL` | Discord Webhook |
 | `SLACK_BOT_TOKEN` + `SLACK_CHANNEL_ID` | Slack Bot |
-| `EMAIL_SENDER` + `EMAIL_PASSWORD` | 郵件推送 |
+| `EMAIL_SENDER` + `RESEND_API_KEY` | 郵件推送（Resend） |
 
 更多渠道、簽名校驗、分組郵件、Markdown 轉圖片等配置見 [通知渠道詳細配置](./full-guide.md#通知渠道详细配置)。
 
