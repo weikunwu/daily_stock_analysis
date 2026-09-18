@@ -51,7 +51,7 @@ class TestFetchRedditReport(unittest.TestCase):
         self.assertEqual(result["report"]["buzz_score"], 85.5)
         mock_get.assert_called_once()
         call_args = mock_get.call_args
-        self.assertIn("/reddit/stocks/v1/report/TSLA", call_args[0][0])
+        self.assertIn("/reddit/stocks/v1/stock/TSLA", call_args[0][0])
 
     @patch("src.services.social_sentiment_service._get_with_retry")
     def test_http_error_returns_none(self, mock_get):
@@ -182,7 +182,7 @@ class TestGetSocialContext(unittest.TestCase):
     def test_formats_reddit_data(self, mock_get):
         def side_effect(url, **kwargs):
             resp = MagicMock()
-            if "/report/" in url:
+            if "/stock/" in url:
                 resp.status_code = 200
                 resp.json.return_value = {
                     "report": {
@@ -218,7 +218,7 @@ class TestGetSocialContext(unittest.TestCase):
         def side_effect(url, **kwargs):
             resp = MagicMock()
             resp.status_code = 200
-            if "/report/" in url:
+            if "/stock/" in url:
                 resp.json.return_value = {"report": {"buzz_score": 80, "trend": "rising"}}
             elif "/x/" in url:
                 resp.json.return_value = {"trending": [{"ticker": "AAPL", "buzz_score": 65}]}
