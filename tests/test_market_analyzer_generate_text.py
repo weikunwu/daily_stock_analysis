@@ -4624,6 +4624,42 @@ Index text.
         assert MarketAnalyzer._turnover_label("us") == "美股成交额"
         assert MarketAnalyzer._turnover_label("cn") == "两市成交额"
 
+    def test_market_review_prompt_breadth_zero_state_marked_missing(self):
+        # 宽度 fail-open 全零态：prompt 数据块标注「数据缺失」，不得渲染全零行情行
+        from src.core.market_profile import US_PROFILE
+        from src.market_analyzer import MarketOverview
+
+        ma = self._make_market_analyzer_with_mock_generate_text(return_value="复盘结果")
+        ma.region = "us"
+        ma.profile = US_PROFILE
+
+        zero = MarketOverview(date="2026-09-18")
+        out = ma._build_review_prompt(zero, [])
+        assert "数据缺失" in out
+        assert "上涨: 0 家" not in out
+        assert "宽度数据缺失" in out  # 美股附注：开通标的池权限后自动恢复
+
+        with_data = MarketOverview(
+            date="2026-09-18", up_count=2500, down_count=1800, flat_count=100, total_amount=450.0
+        )
+        out2 = ma._build_review_prompt(with_data, [])
+        assert "上涨: 2500 家" in out2
+        assert "数据缺失" not in out2
+
+    def test_market_review_prompt_breadth_zero_state_en(self):
+        from src.core.market_profile import US_PROFILE
+        from src.market_analyzer import MarketOverview
+
+        ma = self._make_market_analyzer_with_mock_generate_text(return_value="recap")
+        ma.region = "us"
+        ma.profile = US_PROFILE
+        ma._get_review_language = lambda: "en"
+
+        zero = MarketOverview(date="2026-09-18")
+        out = ma._build_review_prompt(zero, [])
+        assert "Market breadth unavailable" in out
+        assert "Advancers: 0" not in out
+
     def test_market_review_payload_persists_red_up_color_scheme(self):
         from src.market_analyzer import MarketIndex, MarketOverview
 

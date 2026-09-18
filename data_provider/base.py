@@ -3277,9 +3277,19 @@ class DataFetcherManager:
         market="cn"（默认）：A 股宽度，TickFlow 优先、其余源兜底（行为与旧版一致）。
         market="us"：TickFlow US_Equity 标的池聚合（当前唯一美股宽度源；无其他源兜底，
         失败 fail-open 返回空 dict）。
+        契约：当前仅支持 cn/us；其他市场（hk/jp/kr/tw 等）显式 fail-open 返回空 dict，
+        绝不静默回退 A 股路径（避免未来开启其他市场宽度时拿到 A 股数据）。
         """
-        if (market or "cn").strip().lower() == "us":
+        normalized_market = (market or "cn").strip().lower()
+        if normalized_market == "us":
             return self._get_us_market_stats(purpose)
+        if normalized_market != "cn":
+            logger.warning(
+                "[MarketStats] component=market_stats action=unsupported_market market=%r "
+                "purpose=%s (only cn/us supported; fail-open empty result)",
+                market, purpose,
+            )
+            return {}
         logger.info("[MarketStats] component=market_stats action=start purpose=%s", purpose)
         tickflow_fetcher = self._get_tickflow_fetcher()
         if tickflow_fetcher is not None:
@@ -4801,9 +4811,18 @@ class DataFetcherManager:
         market="cn"（默认）：A 股行业板块，固定回退顺序
         Akshare(EM) -> Akshare(Sina) -> Tushare -> Efinance（行为与旧版一致）。
         market="us"：GICS 行业 ETF 代理口径（YFinance 免费链路，fail-open 返回空榜）。
+        契约：当前仅支持 cn/us；其他市场（hk/jp/kr/tw 等）显式 fail-open 返回空榜，
+        绝不静默回退 A 股路径。
         """
-        if (market or "cn").strip().lower() == "us":
+        normalized_market = (market or "cn").strip().lower()
+        if normalized_market == "us":
             return self._get_us_sector_rankings(n)
+        if normalized_market != "cn":
+            logger.warning(
+                "[SectorRankings] 不支持的市场 market=%r（仅支持 cn/us；fail-open 返回空榜）",
+                market,
+            )
+            return [], []
         # 按需求固定回退顺序：Akshare(EM) -> Akshare(Sina) -> Tushare -> Efinance
         top, bottom, _, last_error = self._get_sector_rankings_with_meta(n)
         if top or bottom:

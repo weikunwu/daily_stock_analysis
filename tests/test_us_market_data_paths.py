@@ -130,6 +130,21 @@ class TestManagerUsRouting(unittest.TestCase):
         self.assertEqual(bottom, [])
         yfinance_fetcher.get_sector_rankings.assert_called_once_with(5)
 
+    def test_unknown_markets_fail_open_market_stats(self):
+        # 未知市场显式 fail-open：不静默走 A 股路径、不触碰 TickFlow
+        manager = DataFetcherManager(fetchers=[])
+        fake_tickflow = MagicMock()
+        with patch.object(manager, "_get_tickflow_fetcher", return_value=fake_tickflow):
+            for market in ("hk", "jp", "kr", "tw"):
+                self.assertEqual(manager.get_market_stats(market=market), {})
+        fake_tickflow.get_market_stats.assert_not_called()
+
+    def test_unknown_markets_fail_open_sector_rankings(self):
+        manager = DataFetcherManager(fetchers=[])
+        with patch("yfinance.download", side_effect=AssertionError("must not be called")):
+            for market in ("hk", "jp", "kr", "tw"):
+                self.assertEqual(manager.get_sector_rankings(5, market=market), ([], []))
+
     def test_us_sector_rankings_fail_open_without_yfinance_fetcher(self):
         # fetchers 列表非空才不会触发默认初始化（默认会带真实 YfinanceFetcher）；
         # 放一个非 Yfinance 的占位 fetcher，验证找无 Yfinance 时美股行业榜 fail-open 返回空榜

@@ -1515,7 +1515,6 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     def _describe_turnover(self, total_amount: float, region: str = "cn") -> str:
         """按市场活跃度阈值描述成交额。A 股阈值为亿元（人民币），美股为亿美元。"""
         if region == "us":
-            # 美股全市场日成交额常态约 3000-15000 亿美元量级
             # 美股全市场日成交额常态约 300-1500 十亿美元量级（口径与 _get_turnover_unit_label 一致）
             if total_amount >= 600:
                 return "高活跃度"
@@ -1721,15 +1720,31 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         data_limits_block = ""
         if review_language == "en":
             if self.profile.has_market_stats:
-                breadth_lines = [
-                    f"- Advancers: {overview.up_count} | Decliners: {overview.down_count} | Flat: {overview.flat_count}",
-                ]
-                if self.region == "cn":
-                    # US stocks have no price-limit regime; limit lines are A-share only
-                    breadth_lines.append(
-                        f"- Limit-up: {overview.limit_up_count} | Limit-down: {overview.limit_down_count}"
-                    )
-                breadth_lines.append(f"- Turnover: {overview.total_amount:.0f} ({self._get_turnover_unit_label()})")
+                breadth_empty = (
+                    overview.up_count + overview.down_count + overview.flat_count == 0
+                    and not overview.total_amount
+                )
+                if breadth_empty:
+                    # 数据全缺失（fail-open 空态）：标注数据边界，避免模型把全零当成真实行情
+                    breadth_lines = [
+                        "- Market breadth unavailable: advancers/decliners/turnover were not fetched for this run "
+                        "(missing data, not zero activity)"
+                    ]
+                    if self.region == "us":
+                        breadth_lines.append(
+                            "- US breadth requires TickFlow universe-quotes permission; "
+                            "it will surface automatically once enabled"
+                        )
+                else:
+                    breadth_lines = [
+                        f"- Advancers: {overview.up_count} | Decliners: {overview.down_count} | Flat: {overview.flat_count}",
+                    ]
+                    if self.region == "cn":
+                        # US stocks have no price-limit regime; limit lines are A-share only
+                        breadth_lines.append(
+                            f"- Limit-up: {overview.limit_up_count} | Limit-down: {overview.limit_down_count}"
+                        )
+                    breadth_lines.append(f"- Turnover: {overview.total_amount:.0f} ({self._get_turnover_unit_label()})")
                 stats_block = "## Market Breadth\n" + "\n".join(breadth_lines)
 
             if self.profile.has_sector_rankings:
@@ -1750,17 +1765,31 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
                 data_limits_block = "## Data Limits\n" + "\n".join(data_limit_lines)
         else:
             if self.profile.has_market_stats:
-                stats_lines = [
-                    f"- 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家 | 平盘: {overview.flat_count} 家",
-                ]
-                if self.region == "cn":
-                    # 美股无涨跌停制度，涨停/跌停行仅 A 股展示
-                    stats_lines.append(
-                        f"- 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家"
-                    )
-                stats_lines.append(
-                    f"- {self._turnover_label(self.region)}: {overview.total_amount:.0f} {self._get_turnover_unit_label()}"
+                breadth_empty = (
+                    overview.up_count + overview.down_count + overview.flat_count == 0
+                    and not overview.total_amount
                 )
+                if breadth_empty:
+                    # 数据全缺失（fail-open 空态）：标注数据边界，避免模型把全零当成真实行情
+                    stats_lines = [
+                        "- 涨跌家数/成交额汇总：数据缺失（本次未获取到，不代表 0 家上涨 / 0 成交）",
+                    ]
+                    if self.region == "us":
+                        stats_lines.append(
+                            "- 宽度数据缺失：需开通 TickFlow「标的池查询」权限（Starter 及以上），开通后自动恢复"
+                        )
+                else:
+                    stats_lines = [
+                        f"- 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家 | 平盘: {overview.flat_count} 家",
+                    ]
+                    if self.region == "cn":
+                        # 美股无涨跌停制度，涨停/跌停行仅 A 股展示
+                        stats_lines.append(
+                            f"- 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家"
+                        )
+                    stats_lines.append(
+                        f"- {self._turnover_label(self.region)}: {overview.total_amount:.0f} {self._get_turnover_unit_label()}"
+                    )
                 stats_block = f"## 市场概况\n" + "\n".join(stats_lines)
 
             if self.profile.has_sector_rankings:
