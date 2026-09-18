@@ -4532,6 +4532,37 @@ Index text.
         assert snapshot["dimensions"]["limit"] == {"score": 50, "available": False}
 
     def test_market_review_payload_omits_breadth_for_markets_without_stats(self):
+        # 美股宽度已启用（TickFlow US_Equity 标的池 + GICS 行业 ETF），
+        # 改用港股（has_market_stats=False）验证“市场无宽度数据时省略 breadth”契约
+        from src.core.market_profile import HK_PROFILE
+        from src.market_analyzer import MarketIndex, MarketOverview
+
+        ma = self._make_market_analyzer_with_mock_generate_text(return_value="复盘结果")
+        ma.region = "hk"
+        ma.profile = HK_PROFILE
+
+        payload = ma.build_market_review_payload(
+            MarketOverview(
+                date="2026-03-18",
+                indices=[
+                    MarketIndex(code="HSI", name="恒生指数", current=18000.0, change_pct=0.6),
+                ],
+                up_count=1000,
+                down_count=400,
+                limit_up_count=10,
+                limit_down_count=0,
+                total_amount=9800.0,
+            ),
+            [],
+            "港股复盘报告",
+            market_light_snapshot={"dimensions": {"breadth": {"score": 60, "available": True}}},
+        )
+
+        assert "breadth" not in payload
+        assert payload["indices"][0]["code"] == "HSI"
+        assert payload["color_scheme"] == "green_up"
+
+    def test_market_review_payload_includes_breadth_for_us_market(self):
         from src.core.market_profile import US_PROFILE
         from src.market_analyzer import MarketIndex, MarketOverview
 
@@ -4545,20 +4576,53 @@ Index text.
                 indices=[
                     MarketIndex(code="SPX", name="S&P 500", current=5200.0, change_pct=0.6),
                 ],
-                up_count=1000,
-                down_count=400,
-                limit_up_count=10,
-                limit_down_count=0,
-                total_amount=9800.0,
+                up_count=2500,
+                down_count=1800,
+                flat_count=100,
+                total_amount=450.0,
             ),
             [],
             "美股复盘报告",
-            market_light_snapshot={"dimensions": {"breadth": {"score": 60, "available": True}}},
         )
 
-        assert "breadth" not in payload
-        assert payload["indices"][0]["code"] == "SPX"
-        assert payload["color_scheme"] == "green_up"
+        assert "breadth" in payload
+        assert payload["breadth"]["up_count"] == 2500
+        assert payload["breadth"]["down_count"] == 1800
+        assert payload["breadth"]["turnover_unit"] in ("十亿美元", "USD bn")
+
+    def test_us_concept_rankings_skipped_for_non_cn_regions(self):
+        # 概念/题材排行仅 A 股存在；美股大盘复盘不应再拉取（fail-open 跳过）
+        from src.core.market_profile import US_PROFILE
+        from src.market_analyzer import MarketOverview
+
+        ma = self._make_market_analyzer_with_mock_generate_text(return_value="复盘结果")
+        ma.region = "us"
+        ma.profile = US_PROFILE
+        ma.data_manager = MagicMock()
+        ma.data_manager.get_concept_rankings.return_value = ([{"name": "科技", "change_pct": 1.0}], [])
+
+        overview = MarketOverview(date="2026-03-18")
+        ma._get_concept_rankings(overview)
+
+        ma.data_manager.get_concept_rankings.assert_not_called()
+        assert overview.top_concepts == []
+
+    def test_describe_turnover_market_aware_thresholds(self):
+        ma = self._make_market_analyzer_with_mock_generate_text()
+        # 美股（十亿美元口径）：阈值与 A 股（亿元）不同
+        assert ma._describe_turnover(450, "us") == "中等活跃"
+        assert ma._describe_turnover(700, "us") == "高活跃度"
+        assert ma._describe_turnover(0, "us") == "暂无数据"
+        # A 股保持原阈值
+        assert ma._describe_turnover(15000, "cn") == "高活跃度"
+        assert ma._describe_turnover(9000, "cn") == "中等活跃"
+        assert ma._describe_turnover(500, "cn") == "缩量观望"
+
+    def test_turnover_label_market_aware(self):
+        from src.market_analyzer import MarketAnalyzer
+
+        assert MarketAnalyzer._turnover_label("us") == "美股成交额"
+        assert MarketAnalyzer._turnover_label("cn") == "两市成交额"
 
     def test_market_review_payload_persists_red_up_color_scheme(self):
         from src.market_analyzer import MarketIndex, MarketOverview

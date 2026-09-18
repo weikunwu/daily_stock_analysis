@@ -49,8 +49,10 @@ US_PROFILE = MarketProfile(
         "S&P 500 NASDAQ",
     ],
     prompt_index_hint="分析标普500、纳斯达克、道指等各指数走势特点",
-    has_market_stats=False,
-    has_sector_rankings=False,
+    # 美股宽度：TickFlow US_Equity 标的池聚合（涨跌家数+成交额，无涨跌停制度）
+    # 美股行业排行：GICS 11 个行业 ETF 代理口径（YFinance 免费链路）
+    has_market_stats=True,
+    has_sector_rankings=True,
 )
 
 HK_PROFILE = MarketProfile(

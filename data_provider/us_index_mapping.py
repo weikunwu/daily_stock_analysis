@@ -112,3 +112,21 @@ def get_us_index_yf_symbol(code: str) -> tuple:
     """
     normalized = (code or '').strip().upper()
     return US_INDEX_MAPPING.get(normalized, (None, None))
+
+
+# GICS 11 大行业 -> SPDR 行业 ETF（Yahoo Finance 代码，行业英文名）。
+# 用作美股行业涨跌幅排行的代理口径：行业 ETF 日涨幅 ≈ 行业当日表现。
+# 数据源为 YFinance（免费、无需 key），与美股指数日线链一致。
+US_GICS_SECTOR_ETFS = (
+    ("XLK", "Technology"),
+    ("XLF", "Financials"),
+    ("XLE", "Energy"),
+    ("XLV", "Health Care"),
+    ("XLI", "Industrials"),
+    ("XLP", "Consumer Staples"),
+    ("XLU", "Utilities"),
+    ("XLB", "Materials"),
+    ("XLRE", "Real Estate"),
+    ("XLC", "Communication Services"),
+    ("XLY", "Consumer Discretionary"),
+)

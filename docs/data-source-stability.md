@@ -183,6 +183,8 @@ ALPHAVANTAGE_API_KEY=your_alphavantage_key
 
 ```env
 LONGBRIDGE_APP_KEY=your_app_key
+# 美股大盘复盘宽度依赖 TickFlow「标的池查询」权限（Starter 及以上档位）；
+# 免费档未开通时宽度自动降级，不影响行业排行与机构持仓（后两者无需额外 key）
 LONGBRIDGE_APP_SECRET=your_app_secret
 LONGBRIDGE_ACCESS_TOKEN=your_access_token
 ```

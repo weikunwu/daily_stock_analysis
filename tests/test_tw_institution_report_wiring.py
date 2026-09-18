@@ -119,8 +119,9 @@ class TestTwInstitutionReportWiring(unittest.TestCase):
         # the rest of the context still built (no exception bubbled out)
         self.assertEqual(ctx["market"], "tw")
 
-    # ---- strictly-additive: us is byte-identical AND the tw fetcher is never called -
-    def test_us_institution_unchanged_and_tw_fetcher_not_called(self):
+    # ---- us without a bundle institution payload keeps not_supported;
+    #      the tw fetcher is still never called for US codes -------------------------
+    def test_us_institution_not_supported_without_bundle_payload_and_tw_fetcher_not_called(self):
         ctx, tw_mock = self._context("AAPL", institutional_return=dict(_FAKE_REC))
         self.assertEqual(ctx["market"], "us")
         self.assertEqual(ctx["coverage"].get("institution"), "not_supported")

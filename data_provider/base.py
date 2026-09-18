@@ -3271,8 +3271,15 @@ class DataFetcherManager:
                 continue
         return []
 
-    def get_market_stats(self, *, purpose: str = "unspecified") -> Dict[str, Any]:
-        """获取市场涨跌统计（自动切换数据源）"""
+    def get_market_stats(self, *, purpose: str = "unspecified", market: str = "cn") -> Dict[str, Any]:
+        """获取市场涨跌统计（自动切换数据源）
+
+        market="cn"（默认）：A 股宽度，TickFlow 优先、其余源兜底（行为与旧版一致）。
+        market="us"：TickFlow US_Equity 标的池聚合（当前唯一美股宽度源；无其他源兜底，
+        失败 fail-open 返回空 dict）。
+        """
+        if (market or "cn").strip().lower() == "us":
+            return self._get_us_market_stats(purpose)
         logger.info("[MarketStats] component=market_stats action=start purpose=%s", purpose)
         tickflow_fetcher = self._get_tickflow_fetcher()
         if tickflow_fetcher is not None:
@@ -3339,6 +3346,45 @@ class DataFetcherManager:
                 )
                 continue
         logger.warning("[MarketStats] component=market_stats action=complete status=empty purpose=%s", purpose)
+        return {}
+
+    def _get_us_market_stats(self, purpose: str) -> Dict[str, Any]:
+        """美股宽度：TickFlow US_Equity 标的池聚合（fail-open，无其他源兜底）。"""
+        tickflow_fetcher = self._get_tickflow_fetcher()
+        if tickflow_fetcher is None:
+            logger.warning(
+                "[MarketStats] component=market_stats action=provider_unavailable "
+                "purpose=%s provider=TickFlowFetcher market=us (TickFlow 未配置)",
+                purpose,
+            )
+            return {}
+        started_at = time.monotonic()
+        try:
+            data = tickflow_fetcher.get_market_stats(market="us")
+            elapsed = time.monotonic() - started_at
+            if data:
+                logger.info(
+                    "[MarketStats] component=market_stats action=provider_success "
+                    "purpose=%s provider=TickFlowFetcher market=us elapsed=%.2fs",
+                    purpose,
+                    elapsed,
+                )
+                return data
+            logger.info(
+                "[MarketStats] component=market_stats action=provider_empty "
+                "purpose=%s provider=TickFlowFetcher market=us elapsed=%.2fs",
+                purpose,
+                elapsed,
+            )
+        except Exception as exc:
+            elapsed = time.monotonic() - started_at
+            logger.warning(
+                "[MarketStats] component=market_stats action=provider_failed "
+                "purpose=%s provider=TickFlowFetcher market=us elapsed=%.2fs error=%s",
+                purpose,
+                elapsed,
+                exc,
+            )
         return {}
 
     def _run_with_timeout(
@@ -4036,7 +4082,9 @@ class DataFetcherManager:
             )
 
         # institution: tw (台股) has a free official 三大法人 (institutional net buy/sell)
-        # feed (TWSE T86 / TPEx OpenAPI); every other offshore market keeps not_supported.
+        # feed (TWSE T86 / TPEx OpenAPI); us has yfinance-bundle institutional ownership
+        # (quarterly-disclosure basis, fetched in-band by the adapter for US symbols only);
+        # every other offshore market keeps not_supported.
         # tw-only + strictly additive + fail-open: any error or no-data -> not_supported,
         # which never interrupts the main analysis. Raw net figures only — no derived
         # signal / score / schema (per the v2 scope confirmed on issue #1777).
@@ -4079,7 +4127,31 @@ class DataFetcherManager:
         # status 'ok' only when the record carries all core net figures (a genuine 0 is
         # kept — 0 is not None); None / missing core field / fetch failure -> not_supported.
         _tw_core = ("foreign_net", "trust_net", "dealer_net", "total_net")
-        if tw_record is not None and all(tw_record.get(key) is not None for key in _tw_core):
+        # US institution: yfinance bundle carries major-holders ownership (adapter fetches it
+        # only for US symbols); assembly is pure in-memory (no extra requests) and fail-open —
+        # missing/failed data keeps not_supported and never interrupts the main analysis.
+        us_inst = bundle_payload.get("institution")
+        _us_inst_keys = ("institutional_ownership_pct", "insider_ownership_pct", "institutions_count")
+        if (
+            market == "us"
+            and isinstance(us_inst, dict)
+            and any(us_inst.get(key) is not None for key in _us_inst_keys)
+        ):
+            institution_status = "ok"
+            result_ctx["institution"] = self._build_fundamental_block(
+                "ok",
+                {
+                    "institutional_ownership_pct": us_inst.get("institutional_ownership_pct"),
+                    "insider_ownership_pct": us_inst.get("insider_ownership_pct"),
+                    "institutions_count": us_inst.get("institutions_count"),
+                    "source": us_inst.get("source", "yfinance"),
+                    "note": "季度披露口径，约 45 天滞后；持有比例为最近一期 13F/披露快照",
+                },
+                bundle_chain
+                or [{"provider": "fundamental_bundle_yfinance", "result": "ok", "duration_ms": 0}],
+                [],
+            )
+        elif tw_record is not None and all(tw_record.get(key) is not None for key in _tw_core):
             institution_status = "ok"
             result_ctx["institution"] = self._build_fundamental_block(
                 "ok",
@@ -4723,13 +4795,42 @@ class DataFetcherManager:
 
             return [], [], source_chain, last_error
 
-    def get_sector_rankings(self, n: int = 5) -> Tuple[List[Dict], List[Dict]]:
-        """获取板块涨跌榜（自动切换数据源）"""
+    def get_sector_rankings(self, n: int = 5, market: str = "cn") -> Tuple[List[Dict], List[Dict]]:
+        """获取板块涨跌榜（自动切换数据源）
+
+        market="cn"（默认）：A 股行业板块，固定回退顺序
+        Akshare(EM) -> Akshare(Sina) -> Tushare -> Efinance（行为与旧版一致）。
+        market="us"：GICS 行业 ETF 代理口径（YFinance 免费链路，fail-open 返回空榜）。
+        """
+        if (market or "cn").strip().lower() == "us":
+            return self._get_us_sector_rankings(n)
         # 按需求固定回退顺序：Akshare(EM) -> Akshare(Sina) -> Tushare -> Efinance
         top, bottom, _, last_error = self._get_sector_rankings_with_meta(n)
         if top or bottom:
             return top, bottom
         logger.warning(f"[板块排行] 所有数据源均失败，最终错误: {last_error}")
+        return [], []
+
+    def _get_us_sector_rankings(self, n: int = 5) -> Tuple[List[Dict], List[Dict]]:
+        """美股行业排行：GICS 行业 ETF 代理口径（YFinance，fail-open 返回空榜）。"""
+        for fetcher in self._fetchers:
+            if fetcher.name != "YfinanceFetcher" or not hasattr(fetcher, "get_sector_rankings"):
+                continue
+            started_at = time.time()
+            try:
+                data = fetcher.get_sector_rankings(n)
+                duration_ms = int((time.time() - started_at) * 1000)
+                if data and (data[0] or data[1]):
+                    logger.info(
+                        f"[行业排行] 美股 provider=YfinanceFetcher 成功 (elapsed={duration_ms}ms)"
+                    )
+                    return data[0], data[1]
+                logger.warning(f"[行业排行] 美股 YFinance 行业 ETF 数据为空 (elapsed={duration_ms}ms)")
+            except Exception as e:
+                duration_ms = int((time.time() - started_at) * 1000)
+                logger.warning(f"[行业排行] 美股 YFinance 行业 ETF 获取失败: {e} (elapsed={duration_ms}ms)")
+            return [], []
+        logger.warning("[行业排行] 美股 YfinanceFetcher 不可用，返回空榜单")
         return [], []
 
     @staticmethod
