@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import math
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from threading import RLock
 from time import monotonic
@@ -395,9 +396,14 @@ class TickFlowFetcher(BaseFetcher):
     @classmethod
     def _to_tickflow_symbol(cls, stock_code: str) -> Optional[str]:
         code = normalize_stock_code(stock_code)
+        # US tickers map to the ".US" suffix convention used by the TickFlow API
+        # (e.g., AAPL -> AAPL.US, verified against the official SDK docs).
+        # Limit to 1-5 letter-only symbols so HK/KR/TW codes (digits or dots)
+        # fall through to the CN branch and return None.
+        if re.fullmatch(r"[A-Z]{1,5}", code):
+            return f"{code}.US"
         if not (code.isdigit() and len(code) == 6):
             return None
-
         exchange = cls._exchange_from_code(stock_code)
         if not exchange:
             if is_bse_code(code):
