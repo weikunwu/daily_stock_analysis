@@ -131,7 +131,11 @@ class TestManagerUsRouting(unittest.TestCase):
         yfinance_fetcher.get_sector_rankings.assert_called_once_with(5)
 
     def test_us_sector_rankings_fail_open_without_yfinance_fetcher(self):
-        manager = DataFetcherManager(fetchers=[])
+        # fetchers 列表非空才不会触发默认初始化（默认会带真实 YfinanceFetcher）；
+        # 放一个非 Yfinance 的占位 fetcher，验证找无 Yfinance 时美股行业榜 fail-open 返回空榜
+        dummy = MagicMock()
+        dummy.name = "DummyFetcher"
+        manager = DataFetcherManager(fetchers=[dummy])
         self.assertEqual(manager.get_sector_rankings(5, market="us"), ([], []))
 
 
