@@ -89,8 +89,8 @@ daily_stock_analysis/
 | `SLACK_BOT_TOKEN` | Slack Bot Token（推荐，支持图片上传；同时配置时优先于 Webhook） | 可选 |
 | `SLACK_CHANNEL_ID` | Slack Channel ID（使用 Bot 时需要） | 可选 |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL（仅文本，不支持图片） | 可选 |
-| `EMAIL_SENDER` | 发件人邮箱（如 `xxx@qq.com`） | 可选 |
-| `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
+| `EMAIL_SENDER` | 发件人邮箱（须为 Resend 已验证域名下的地址，如 `reports@example.com`） | 可选 |
+| `RESEND_API_KEY` | Resend API Key（作为 SMTP 中继密码） | 可选 |
 | `EMAIL_RECEIVERS` | 收件人邮箱（多个用逗号分隔，留空则发给自己） | 可选 |
 | `EMAIL_SENDER_NAME` | 发件人显示名称（默认：daily_stock_analysis股票分析助手） | 可选 |
 | `PUSHPLUS_TOKEN` | PushPlus Token（[获取地址](https://www.pushplus.plus)，国内推送服务） | 可选 |
@@ -199,7 +199,7 @@ daily_stock_analysis/
 如果你想快速开始，最少需要配置以下项：
 
 1. **AI 模型**：`ANSPIRE_API_KEYS`（一 Key 同时启用大模型和搜索）、`AIHUBMIX_KEY`（[AIHubmix](https://inferera.com/?aff=CfMq)，一 Key 多模型）、`GEMINI_API_KEY` 或 `OPENAI_API_KEY`
-2. **通知渠道**：至少配置一个，如 `WECHAT_WEBHOOK_URL` 或 `EMAIL_SENDER` + `EMAIL_PASSWORD`
+2. **通知渠道**：至少配置一个，如 `WECHAT_WEBHOOK_URL` 或 `EMAIL_SENDER` + `RESEND_API_KEY`
 3. **股票列表**：`STOCK_LIST`（必填）
 4. **搜索 API**：`ANSPIRE_API_KEYS` 或 `SERPAPI_API_KEYS`（推荐，用于新闻与舆情搜索）
 
@@ -313,8 +313,8 @@ daily_stock_analysis/
 | `SLACK_BOT_TOKEN` | Slack Bot Token（推荐，支持图片上传；同时配置时优先于 Webhook） | 可选 |
 | `SLACK_CHANNEL_ID` | Slack Channel ID（使用 Bot 时需要） | 可选 |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL（仅文本，不支持图片） | 可选 |
-| `EMAIL_SENDER` | 发件人邮箱 | 可选 |
-| `EMAIL_PASSWORD` | 邮箱授权码（非登录密码） | 可选 |
+| `EMAIL_SENDER` | 发件人邮箱（Resend 已验证域名地址） | 可选 |
+| `RESEND_API_KEY` | Resend API Key（作为 SMTP 中继密码） | 可选 |
 | `EMAIL_RECEIVERS` | 收件人邮箱（逗号分隔，留空发给自己） | 可选 |
 | `EMAIL_SENDER_NAME` | 发件人显示名称 | 可选 |
 | `STOCK_GROUP_N` / `EMAIL_GROUP_N` | 邮件分组路由（Issue #268）：`STOCK_GROUP_N` 应为 `STOCK_LIST` 子集，仅影响邮件收件人，不改变分析范围或其他通知渠道 | 可选 |
@@ -1175,16 +1175,16 @@ FEISHU_WEBHOOK_URL=https://open.feishu.cn/open-apis/bot/v2/hook/your_hook_token
 4. 设置 `TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_CHAT_ID`
 5. (可选) 如需发送到 Topic，设置 `TELEGRAM_MESSAGE_THREAD_ID` (从 Topic 链接末尾获取)
 
-### 邮件
+### 邮件（Resend）
 
-1. 开启邮箱的 SMTP 服务
-2. 获取授权码（非登录密码）
-3. 设置 `EMAIL_SENDER`、`EMAIL_PASSWORD`、`EMAIL_RECEIVERS`
+邮件推送通过 Resend SMTP 中继发送（无需邮箱授权码），发件域名需先在 Resend 控制台验证：
 
-支持的邮箱：
-- QQ 邮箱：smtp.qq.com:465
-- 163 邮箱：smtp.163.com:465
-- Gmail：smtp.gmail.com:587
+1. 注册 https://resend.com 账号
+2. 在 Domains 页添加发件域名，按控制台提示配置 DNS 记录（DKIM/SPF/DMARC，通常 15 分钟内生效）
+3. 在 API Keys 页创建 API Key
+4. 设置 `EMAIL_SENDER`（已验证域名的地址）、`RESEND_API_KEY`（作为 SMTP 密码）、`EMAIL_RECEIVERS`（留空则发给自己）
+
+> 发送走 `smtp.resend.com:465`，用户名固定为 `resend`，密码为 API Key；Resend 的共享域名 resend.dev 仅供测试，发给其他收件人必须验证自己的域名。
 
 **股票分组发往不同邮箱**（Issue #268，可选）：
 配置 `STOCK_GROUP_N` 与 `EMAIL_GROUP_N` 可实现不同股票组的报告发送到不同邮箱，例如多人共享分析时互不干扰。`STOCK_LIST` 仍决定本次实际分析的股票集合，`STOCK_GROUP_N` 应写成 `STOCK_LIST` 的子集；它只影响邮件收件人，不会改变 Telegram、企业微信、Webhook 等其他渠道收到的完整报告。大盘复盘会发往所有配置的邮箱。

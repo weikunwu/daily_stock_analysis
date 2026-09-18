@@ -242,8 +242,8 @@ class SystemConfigService:
         "TELEGRAM_CHAT_ID": ("telegram_chat_id", "string"),
         "TELEGRAM_MESSAGE_THREAD_ID": ("telegram_message_thread_id", "string"),
         "EMAIL_SENDER": ("email_sender", "string"),
+        "RESEND_API_KEY": ("resend_api_key", "string"),
         "EMAIL_SENDER_NAME": ("email_sender_name", "string"),
-        "EMAIL_PASSWORD": ("email_password", "string"),
         "EMAIL_RECEIVERS": ("email_receivers", "csv"),
         "PUSHOVER_USER_KEY": ("pushover_user_key", "string"),
         "PUSHOVER_API_TOKEN": ("pushover_api_token", "string"),
@@ -274,7 +274,7 @@ class SystemConfigService:
         "dingtalk": (("DINGTALK_WEBHOOK_URL",),),
         "feishu": (FEISHU_WEBHOOK_ENV_GROUP, FEISHU_APP_BOT_ENV_GROUP),
         "telegram": (("TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"),),
-        "email": (("EMAIL_SENDER", "EMAIL_PASSWORD"),),
+        "email": (("EMAIL_SENDER", "RESEND_API_KEY"),),
         "pushover": (("PUSHOVER_USER_KEY", "PUSHOVER_API_TOKEN"),),
         "ntfy": (("NTFY_URL",),),
         "gotify": (("GOTIFY_URL", "GOTIFY_TOKEN"),),
@@ -3816,7 +3816,7 @@ class SystemConfigService:
             )
             or (
                 self._has_any_config_value(effective_map, ("EMAIL_SENDER",))
-                and self._has_any_config_value(effective_map, ("EMAIL_PASSWORD",))
+                and self._has_any_config_value(effective_map, ("RESEND_API_KEY",))
             )
             or (
                 self._has_any_config_value(effective_map, ("DINGTALK_APP_KEY",))

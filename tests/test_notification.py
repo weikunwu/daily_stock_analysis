@@ -2214,8 +2214,8 @@ class TestNotificationServiceReportGeneration(unittest.TestCase):
         self, mock_smtp_ssl: mock.MagicMock, mock_get_config: mock.MagicMock
     ):
         cfg = _make_config(
-            email_sender="user@qq.com",
-            email_password="PASS",
+            email_sender="user@example.com",
+            resend_api_key="re_test",
             email_receivers=["default@example.com"],
         )
         mock_get_config.return_value = cfg
@@ -2235,8 +2235,8 @@ class TestNotificationServiceReportGeneration(unittest.TestCase):
         self, mock_smtp_ssl: mock.MagicMock, mock_get_config: mock.MagicMock
     ):
         cfg = _make_config(
-            email_sender="user@qq.com",
-            email_password="PASS",
+            email_sender="user@example.com",
+            resend_api_key="re_test",
             email_receivers=["default@example.com"],
         )
         mock_get_config.return_value = cfg
@@ -2256,8 +2256,8 @@ class TestNotificationServiceReportGeneration(unittest.TestCase):
         self, mock_get_config: mock.MagicMock
     ):
         cfg = _make_config(
-            email_sender="user@qq.com",
-            email_password="PASS",
+            email_sender="user@example.com",
+            resend_api_key="re_test",
             email_receivers=["default@example.com"],
         )
         mock_get_config.return_value = cfg
@@ -2321,8 +2321,8 @@ class TestNotificationServiceReportGeneration(unittest.TestCase):
         self, mock_smtp_ssl: mock.MagicMock, mock_get_config: mock.MagicMock
     ):
         cfg = _make_config(
-            email_sender="user@qq.com",
-            email_password="PASS",
+            email_sender="user@example.com",
+            resend_api_key="re_test",
             email_receivers=["default@example.com"],
             stock_email_groups=[(["000001", "600519"], ["group@example.com"])],
         )

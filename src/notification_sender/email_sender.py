@@ -3,7 +3,9 @@
 Email 发送提醒服务
 
 职责：
-1. 通过 SMTP 发送 Email 消息
+1. 通过 Resend SMTP 中继（smtp.resend.com）发送 Email 消息
+   - 用户名固定为 resend，密码为 Resend API Key（re_ 开头，无需邮箱授权码）
+   - 发件域名必须先在 Resend 控制台（Domains 页）验证
 """
 import logging
 from typing import Optional, List
@@ -22,37 +24,17 @@ from src.formatters import markdown_to_html_document, strip_hidden_markdown_meta
 
 logger = logging.getLogger(__name__)
 
-
-# SMTP 服务器配置（自动识别）
-SMTP_CONFIGS = {
-    # QQ邮箱
-    "qq.com": {"server": "smtp.qq.com", "port": 465, "ssl": True},
-    "foxmail.com": {"server": "smtp.qq.com", "port": 465, "ssl": True},
-    # 网易邮箱
-    "163.com": {"server": "smtp.163.com", "port": 465, "ssl": True},
-    "126.com": {"server": "smtp.126.com", "port": 465, "ssl": True},
-    # Gmail
-    "gmail.com": {"server": "smtp.gmail.com", "port": 587, "ssl": False},
-    # Outlook
-    "outlook.com": {"server": "smtp-mail.outlook.com", "port": 587, "ssl": False},
-    "hotmail.com": {"server": "smtp-mail.outlook.com", "port": 587, "ssl": False},
-    "live.com": {"server": "smtp-mail.outlook.com", "port": 587, "ssl": False},
-    # 新浪
-    "sina.com": {"server": "smtp.sina.com", "port": 465, "ssl": True},
-    # 搜狐
-    "sohu.com": {"server": "smtp.sohu.com", "port": 465, "ssl": True},
-    # 阿里云
-    "aliyun.com": {"server": "smtp.aliyun.com", "port": 465, "ssl": True},
-    # 139邮箱
-    "139.com": {"server": "smtp.139.com", "port": 465, "ssl": True},
-}
+# Resend SMTP 中继（https://resend.com/settings/smtp）
+RESEND_SMTP_HOST = "smtp.resend.com"
+RESEND_SMTP_PORT = 465
+RESEND_SMTP_USER = "resend"
 
 
 class EmailSender:
     
     def __init__(self, config: Config):
         """
-        初始化 Email 配置
+        初始化 Email（Resend）配置
 
         Args:
             config: 配置对象
@@ -60,14 +42,14 @@ class EmailSender:
         self._email_config = {
             'sender': config.email_sender,
             'sender_name': getattr(config, 'email_sender_name', 'daily_stock_analysis股票分析助手'),
-            'password': config.email_password,
+            'api_key': (getattr(config, 'resend_api_key', None) or '').strip(),
             'receivers': config.email_receivers or ([config.email_sender] if config.email_sender else []),
         }
         self._stock_email_groups = getattr(config, 'stock_email_groups', None) or []
         
     def _is_email_configured(self) -> bool:
-        """检查邮件配置是否完整（只需邮箱和授权码）"""
-        return bool(self._email_config['sender'] and self._email_config['password'])
+        """检查邮件配置是否完整（发件人地址 + Resend API Key）"""
+        return bool(self._email_config['sender'] and self._email_config['api_key'])
     
     def get_receivers_for_stocks(self, stock_codes: List[str]) -> List[str]:
         """
@@ -110,7 +92,7 @@ class EmailSender:
         return result
 
     def _format_sender_address(self, sender: str) -> str:
-        """Encode display name safely so non-ASCII sender names work across SMTP providers."""
+        """Encode display name safely so non-ASCII sender names work through Resend."""
         sender_name = self._email_config.get('sender_name') or '股票分析助手'
         return formataddr((str(Header(str(sender_name), 'utf-8')), sender))
 
@@ -131,6 +113,13 @@ class EmailSender:
             except Exception:
                 pass
     
+    def _connect_resend_smtp(self, timeout_seconds: Optional[float] = None) -> smtplib.SMTP:
+        """Connect to the Resend SMTP relay (SSL, port 465) and login with the API key."""
+        logger.info(f"使用 Resend SMTP 中继: {RESEND_SMTP_HOST}:{RESEND_SMTP_PORT}")
+        server = smtplib.SMTP_SSL(RESEND_SMTP_HOST, RESEND_SMTP_PORT, timeout=timeout_seconds or 30)
+        server.login(RESEND_SMTP_USER, self._email_config['api_key'])
+        return server
+    
     def send_to_email(
         self,
         content: str,
@@ -140,7 +129,7 @@ class EmailSender:
         timeout_seconds: Optional[float] = None,
     ) -> bool:
         """
-        通过 SMTP 发送邮件（自动识别 SMTP 服务器）
+        通过 Resend SMTP 中继发送邮件
         
         Args:
             content: 邮件内容（支持 Markdown，会转换为 HTML）
@@ -151,11 +140,10 @@ class EmailSender:
             是否发送成功
         """
         if not self._is_email_configured():
-            logger.warning("邮件配置不完整，跳过推送")
+            logger.warning("邮件配置不完整（EMAIL_SENDER + RESEND_API_KEY），跳过推送")
             return False
         
         sender = self._email_config['sender']
-        password = self._email_config['password']
         receivers = receivers or self._email_config['receivers']
         server: Optional[smtplib.SMTP] = None
         
@@ -182,42 +170,18 @@ class EmailSender:
             msg.attach(text_part)
             msg.attach(html_part)
             
-            # 自动识别 SMTP 配置
-            domain = sender.split('@')[-1].lower()
-            smtp_config = SMTP_CONFIGS.get(domain)
-            
-            if smtp_config:
-                smtp_server = smtp_config['server']
-                smtp_port = smtp_config['port']
-                use_ssl = smtp_config['ssl']
-                logger.info(f"自动识别邮箱类型: {domain} -> {smtp_server}:{smtp_port}")
-            else:
-                # 未知邮箱，尝试通用配置
-                smtp_server = f"smtp.{domain}"
-                smtp_port = 465
-                use_ssl = True
-                logger.warning(f"未知邮箱类型 {domain}，尝试通用配置: {smtp_server}:{smtp_port}")
-            
-            # 根据配置选择连接方式
-            if use_ssl:
-                # SSL 连接（端口 465）
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=timeout_seconds or 30)
-            else:
-                # TLS 连接（端口 587）
-                server = smtplib.SMTP(smtp_server, smtp_port, timeout=timeout_seconds or 30)
-                server.starttls()
-            
-            server.login(sender, password)
+            # Resend SMTP 中继（用户名固定 resend，密码为 API Key）
+            server = self._connect_resend_smtp(timeout_seconds)
             server.send_message(msg)
             
-            logger.info(f"邮件发送成功，收件人: {receivers}")
+            logger.info(f"邮件发送成功（Resend），收件人: {receivers}")
             return True
             
         except smtplib.SMTPAuthenticationError:
-            logger.error("邮件发送失败：认证错误，请检查邮箱和授权码是否正确")
+            logger.error("邮件发送失败：Resend API Key（RESEND_API_KEY）认证错误，请检查 Key 是否正确")
             return False
         except smtplib.SMTPConnectError as e:
-            logger.error(f"邮件发送失败：无法连接 SMTP 服务器 - {e}")
+            logger.error(f"邮件发送失败：无法连接 Resend SMTP 中继（{RESEND_SMTP_HOST}）- {e}")
             return False
         except Exception as e:
             logger.error(f"发送邮件失败: {e}")
@@ -232,7 +196,6 @@ class EmailSender:
         if not self._is_email_configured():
             return False
         sender = self._email_config['sender']
-        password = self._email_config['password']
         receivers = receivers or self._email_config['receivers']
         server: Optional[smtplib.SMTP] = None
         try:
@@ -257,26 +220,12 @@ class EmailSender:
             img_part.add_header('Content-ID', '<report-image>')
             msg.attach(img_part)
 
-            domain = sender.split('@')[-1].lower()
-            smtp_config = SMTP_CONFIGS.get(domain)
-            if smtp_config:
-                smtp_server, smtp_port = smtp_config['server'], smtp_config['port']
-                use_ssl = smtp_config['ssl']
-            else:
-                smtp_server, smtp_port = f"smtp.{domain}", 465
-                use_ssl = True
-
-            if use_ssl:
-                server = smtplib.SMTP_SSL(smtp_server, smtp_port, timeout=30)
-            else:
-                server = smtplib.SMTP(smtp_server, smtp_port, timeout=30)
-                server.starttls()
-            server.login(sender, password)
+            server = self._connect_resend_smtp()
             server.send_message(msg)
-            logger.info("邮件（内联图片）发送成功，收件人: %s", receivers)
+            logger.info("邮件（内联图片，Resend）发送成功，收件人: %s", receivers)
             return True
         except Exception as e:
-            logger.error("邮件（内联图片）发送失败: %s", e)
+            logger.error("邮件（内联图片，Resend）发送失败: %s", e)
             return False
         finally:
             self._close_server(server)

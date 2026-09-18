@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [文档] 将仓库内所有 SerpApi 链接统一更新为新的赞助转化追踪地址。
 - [修复] 智能导入兼容带 UTF-8 BOM 的 CSV 与剪贴板文本，避免 `code` 表头被误当成数据并丢失有效股票代码。
 - [改进] 每日定时分析改为 timezone-aware cron（`0 17 * * 1-5` + `timezone: America/Los_Angeles`）：全年固定美西工作日 17:00 触发，自动处理夏令时/冬令时（此前冬令时会漂移为美西 16:00）。
+- [新功能] 邮件推送改用 Resend（SMTP 中继 `smtp.resend.com:465`，`EMAIL_SENDER` + `RESEND_API_KEY` 作为凭据），移除旧邮箱授权码 `EMAIL_PASSWORD` 链路；发件域名需先在 Resend 控制台验证，`EMAIL_RECEIVERS` 留空时发给自己，`daily_analysis` 工作流同步映射 `RESEND_API_KEY`。
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->

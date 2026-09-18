@@ -11,7 +11,7 @@ A股自选股智能分析系统 - 通知层
    - 企业微信 Webhook
    - 飞书 Webhook
    - Telegram Bot
-   - 邮件 SMTP
+   - 邮件（Resend）
    - Pushover（手机/桌面推送）
 """
 from __future__ import annotations
@@ -282,7 +282,7 @@ class NotificationService(
     - 企业微信 Webhook
     - 飞书 Webhook
     - Telegram Bot
-    - 邮件 SMTP
+    - 邮件（Resend）
     - Pushover（手机/桌面推送）
 
     注意：所有已配置的渠道都会收到推送
@@ -516,7 +516,7 @@ class NotificationService(
         ):
             channels.append(NotificationChannel.TELEGRAM)
 
-        if getattr(config, "email_sender", None) and getattr(config, "email_password", None):
+        if getattr(config, "email_sender", None) and getattr(config, "resend_api_key", None):
             channels.append(NotificationChannel.EMAIL)
 
         if (

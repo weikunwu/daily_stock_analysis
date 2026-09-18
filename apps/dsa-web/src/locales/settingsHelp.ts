@@ -575,14 +575,14 @@ const settingsHelpZhCN: SettingsHelpMap = {
   },
   'settings.notification.email': {
     title: '邮件通知',
-    summary: '通过 SMTP 邮箱发送分析报告。',
-    usage: '填写发件邮箱、SMTP 授权码和收件人列表；多个收件人使用英文逗号分隔。',
+    summary: '通过 Resend 发送分析报告。',
+    usage: '填写 Resend API Key、发件邮箱（已验证域名地址）和收件人列表；多个收件人使用英文逗号分隔。',
     valueNotes: [
-      'EMAIL_PASSWORD 通常是邮箱授权码，不是网页登录密码。',
+      'EMAIL_SENDER 必须是 Resend 控制台已验证域名的地址。',
       '可用 STOCK_GROUP_N / EMAIL_GROUP_N 配置分组收件人。',
     ],
     impact: ['影响邮件报告发送、分组收件和大盘复盘邮件送达。'],
-    notes: ['不同邮箱服务商需要先开启 SMTP 服务。'],
+    notes: ['发件域名需先在 Resend 控制台添加 DNS 记录并完成验证。'],
   },
   'settings.notification.chat_bots': {
     title: '聊天平台 Bot',
@@ -1798,11 +1798,11 @@ const settingsHelpEnUS: SettingsHelpMap = {
   },
   'settings.notification.email': {
     title: 'Email Delivery',
-    summary: 'Sends analysis reports through SMTP.',
-    usage: 'Set sender, SMTP authorization code, and comma-separated receivers.',
-    valueNotes: ['EMAIL_PASSWORD is usually an app authorization code, not the web login password.', 'STOCK_GROUP_N and EMAIL_GROUP_N can route groups to different receivers.'],
+    summary: 'Sends analysis reports through Resend.',
+    usage: 'Set the Resend API key, sender email (verified domain address), and comma-separated receivers.',
+    valueNotes: ['EMAIL_SENDER must be an address on a domain verified in the Resend console.', 'STOCK_GROUP_N and EMAIL_GROUP_N can route groups to different receivers.'],
     impact: ['Affects email reports, grouped recipients, and market-review emails.'],
-    notes: ['Enable SMTP in the mailbox provider first.'],
+    notes: ['Verify the sending domain (DNS records) in the Resend console first.'],
   },
   'settings.notification.chat_bots': {
     title: 'Chat Platform Bots',

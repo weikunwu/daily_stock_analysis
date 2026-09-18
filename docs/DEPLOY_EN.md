@@ -382,8 +382,8 @@ Add these Secrets:
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | Optional* |
 | `TELEGRAM_CHAT_ID` | Telegram Chat ID | Optional* |
 | `TELEGRAM_MESSAGE_THREAD_ID` | Telegram Topic ID | Optional* |
-| `EMAIL_SENDER` | Sender email | Optional* |
-| `EMAIL_PASSWORD` | Email authorization code | Optional* |
+| `EMAIL_SENDER` | Sender address (Resend verified domain) | Optional* |
+| `RESEND_API_KEY` | Resend API key (SMTP relay password) | Optional* |
 | `SERVERCHAN3_SENDKEY` | ServerChan v3 Sendkey | Optional* |
 | `CUSTOM_WEBHOOK_URLS` | Custom Webhook (comma-separated for multiple) | Optional* |
 | `STOCK_LIST` | Watchlist, e.g., `600519,300750` | ✅ |

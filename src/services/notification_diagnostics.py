@@ -111,7 +111,7 @@ CHANNEL_SPECS: Tuple[NotificationChannelSpec, ...] = (
         channel=NotificationChannel.EMAIL.value,
         display_name=ChannelDetector.get_channel_name(NotificationChannel.EMAIL),
         kind="configured",
-        minimal_keys=("EMAIL_SENDER", "EMAIL_PASSWORD"),
+        minimal_keys=("EMAIL_SENDER", "RESEND_API_KEY"),
         advanced_keys=("EMAIL_RECEIVERS", "EMAIL_SENDER_NAME"),
     ),
     NotificationChannelSpec(
@@ -375,9 +375,9 @@ def run_notification_diagnostics(config: Config) -> NotificationDiagnosticResult
     _require_pair(
         config,
         left_attr="email_sender",
-        right_attr="email_password",
+        right_attr="resend_api_key",
         left_key="EMAIL_SENDER",
-        right_key="EMAIL_PASSWORD",
+        right_key="RESEND_API_KEY",
         channel_name="邮件",
         errors=errors,
     )

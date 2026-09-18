@@ -1062,10 +1062,10 @@ class Config:
     telegram_chat_id: Optional[str] = None  # Chat ID
     telegram_message_thread_id: Optional[str] = None  # Topic ID (Message Thread ID) for groups
     
-    # 邮件配置（只需邮箱和授权码，SMTP 自动识别）
-    email_sender: Optional[str] = None  # 发件人邮箱
+    # 邮件配置（Resend SMTP 中继，无需邮箱授权码；发件域名需在 Resend 控制台验证）
+    email_sender: Optional[str] = None  # 发件人地址（Resend 已验证域名，如 reports@example.com）
+    resend_api_key: Optional[str] = None  # Resend API Key（re_ 开头，作为 SMTP 中继密码）
     email_sender_name: str = "daily_stock_analysis股票分析助手"  # 发件人显示名称
-    email_password: Optional[str] = None  # 邮箱密码/授权码
     email_receivers: List[str] = field(default_factory=list)  # 收件人列表（留空则发给自己）
 
     # Stock-to-email group routing (Issue #268): STOCK_GROUP_N + EMAIL_GROUP_N
@@ -2038,8 +2038,8 @@ class Config:
             telegram_chat_id=os.getenv('TELEGRAM_CHAT_ID'),
             telegram_message_thread_id=os.getenv('TELEGRAM_MESSAGE_THREAD_ID'),
             email_sender=os.getenv('EMAIL_SENDER'),
+            resend_api_key=os.getenv('RESEND_API_KEY'),
             email_sender_name=os.getenv('EMAIL_SENDER_NAME', 'daily_stock_analysis股票分析助手'),
-            email_password=os.getenv('EMAIL_PASSWORD'),
             email_receivers=[r.strip() for r in os.getenv('EMAIL_RECEIVERS', '').split(',') if r.strip()],
             stock_email_groups=cls._parse_stock_email_groups(),
             pushover_user_key=os.getenv('PUSHOVER_USER_KEY'),
@@ -2988,6 +2988,10 @@ class Config:
         """Whether SearXNG fallback is enabled via self-hosted or public mode."""
         return bool(self.searxng_base_urls) or bool(self.searxng_public_instances_enabled)
 
+    def has_email_channel(self) -> bool:
+        """Whether the email (Resend) channel is enabled: sender address + Resend API key."""
+        return bool((self.email_sender or "").strip() and (self.resend_api_key or "").strip())
+
     def has_search_capability_enabled(self) -> bool:
         """Whether any search provider is configured or SearXNG fallback is enabled."""
         return bool(
@@ -3441,7 +3445,7 @@ class Config:
                 and (self.feishu_chat_id or "")
             )
             or (self.telegram_bot_token and self.telegram_chat_id)
-            or (self.email_sender and self.email_password)
+            or self.has_email_channel()
             or (self.pushover_user_key and self.pushover_api_token)
             or _has_ntfy_topic_endpoint(self.ntfy_url)
             or (
@@ -3476,12 +3480,12 @@ class Config:
             ))
 
         has_email_sender = bool((self.email_sender or "").strip())
-        has_email_password = bool((self.email_password or "").strip())
-        if has_email_sender != has_email_password:
+        has_resend_key = bool((self.resend_api_key or "").strip())
+        if has_email_sender != has_resend_key:
             issues.append(ConfigIssue(
                 severity="error",
-                message="邮件通知配置不完整：EMAIL_SENDER 和 EMAIL_PASSWORD 必须同时配置。",
-                field="EMAIL_PASSWORD" if has_email_sender else "EMAIL_SENDER",
+                message="邮件通知配置不完整：EMAIL_SENDER 和 RESEND_API_KEY 必须同时配置。",
+                field="RESEND_API_KEY" if has_email_sender else "EMAIL_SENDER",
             ))
 
         def _warn_if_webhook_url_invalid(field: str, value: Optional[str]) -> None:

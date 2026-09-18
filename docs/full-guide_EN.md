@@ -87,9 +87,9 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 | `SLACK_BOT_TOKEN` | Slack Bot Token (recommended, supports image upload; takes priority over Webhook when both set) | Optional |
 | `SLACK_CHANNEL_ID` | Slack Channel ID (required when using Bot) | Optional |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL (text only, no image support) | Optional |
-| `EMAIL_SENDER` | Sender email (e.g., `xxx@qq.com`) | Optional |
-| `EMAIL_PASSWORD` | Email authorization code (not login password) | Optional |
-| `EMAIL_RECEIVERS` | Receiver emails (comma-separated, leave empty to send to self) | Optional |
+| `EMAIL_SENDER` | Sender email (must be an address on a Resend-verified domain, e.g., `reports@example.com`) | Optional |
+| `RESEND_API_KEY` | Resend API key (used as the SMTP relay password) | Optional |
+| `EMAIL_RECEIVERS` | Receiver emails (comma-separated; leave empty to send to yourself) | Optional |
 | `EMAIL_SENDER_NAME` | Sender display name | Optional |
 | `STOCK_GROUP_N` / `EMAIL_GROUP_N` | Email routing groups (Issue #268): `STOCK_GROUP_N` should be a subset of `STOCK_LIST`; affects email recipients only, not analysis scope or other channels | Optional |
 | `PUSHPLUS_TOKEN` | PushPlus Token ([Get here](https://www.pushplus.plus), Chinese push service) | Optional |
@@ -172,7 +172,7 @@ Go to your forked repo → `Settings` → `Secrets and variables` → `Actions` 
 To get started quickly, you need at minimum:
 
 1. **AI Model**: `ANSPIRE_API_KEYS` (one key for LLMs and search), `AIHUBMIX_KEY` (one key for multiple model families), `GEMINI_API_KEY`, or `OPENAI_API_KEY`
-2. **Notification Channel**: At least one, e.g., `WECHAT_WEBHOOK_URL` or `EMAIL_SENDER` + `EMAIL_PASSWORD`
+2. **Notification Channel**: At least one, e.g., `WECHAT_WEBHOOK_URL` or `EMAIL_SENDER` + `RESEND_API_KEY`
 3. **Stock List**: `STOCK_LIST` (required)
 4. **Search API**: `ANSPIRE_API_KEYS` or `SERPAPI_API_KEYS` (recommended for news and sentiment search)
 
@@ -276,9 +276,9 @@ For the notification baseline, diagnostics, and deployment notes, see [Notificat
 | `SLACK_BOT_TOKEN` | Slack Bot Token (recommended, supports image upload; takes priority over Webhook when both set) | Optional |
 | `SLACK_CHANNEL_ID` | Slack Channel ID (required when using Bot) | Optional |
 | `SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL (text only, no image support) | Optional |
-| `EMAIL_SENDER` | Sender email | Optional |
-| `EMAIL_PASSWORD` | Email authorization code (not login password) | Optional |
-| `EMAIL_RECEIVERS` | Receiver emails (comma-separated, leave empty to send to self) | Optional |
+| `EMAIL_SENDER` | Sender email (Resend verified domain address) | Optional |
+| `RESEND_API_KEY` | Resend API key (used as the SMTP relay password) | Optional |
+| `EMAIL_RECEIVERS` | Receiver emails (comma-separated; leave empty to send to yourself) | Optional |
 | `EMAIL_SENDER_NAME` | Sender display name | Optional |
 | `STOCK_GROUP_N` / `EMAIL_GROUP_N` | Email routing groups (Issue #268): `STOCK_GROUP_N` should stay within `STOCK_LIST` and only changes email recipients | Optional |
 | `CUSTOM_WEBHOOK_URLS` | Custom Webhook (comma-separated) | Optional |
@@ -1038,16 +1038,16 @@ For a full illustrated troubleshooting guide, see [docs/bot/feishu-bot-config.md
 4. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
 5. (Optional) To send to Topic, set `TELEGRAM_MESSAGE_THREAD_ID` (get from Topic link)
 
-### Email
+### Email (Resend)
 
-1. Enable SMTP service for your email
-2. Get authorization code (not login password)
-3. Set `EMAIL_SENDER`, `EMAIL_PASSWORD`, `EMAIL_RECEIVERS`
+Email reports are sent through Resend's SMTP relay (no mailbox authorization code required). The sending domain must be verified in the Resend console:
 
-Supported email providers:
-- QQ Mail: smtp.qq.com:465
-- 163 Mail: smtp.163.com:465
-- Gmail: smtp.gmail.com:587
+1. Sign up at https://resend.com
+2. Add your sending domain on the Domains page and configure the DNS records (DKIM/SPF/DMARC) shown in the console; verification usually completes within ~15 minutes
+3. Create an API key on the API Keys page
+4. Set `EMAIL_SENDER` (an address on your verified domain), `RESEND_API_KEY` (used as the SMTP password), and `EMAIL_RECEIVERS` (leave empty to send to yourself)
+
+> Delivery goes through `smtp.resend.com:465` with the username fixed to `resend` and the API key as the password; Resend's shared domain resend.dev is for testing only, so verify your own domain to send to other recipients.
 
 **Send different stock groups to different email recipients** (Issue #268, optional):
 Configure `STOCK_GROUP_N` and `EMAIL_GROUP_N` to route different stock groups to different inboxes. `STOCK_LIST` still defines the actual analysis scope, so each `STOCK_GROUP_N` should be a subset of `STOCK_LIST`. This only changes email recipients; Telegram, WeChat, Webhook, and other channels still receive the full report for the entire `STOCK_LIST`. Market review emails are sent to all configured group recipients.

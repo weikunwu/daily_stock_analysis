@@ -101,7 +101,7 @@ Start with one provider and one API key. For multi-model routing, image recognit
 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | Telegram |
 | `DISCORD_WEBHOOK_URL` | Discord webhook |
 | `SLACK_BOT_TOKEN` + `SLACK_CHANNEL_ID` | Slack bot |
-| `EMAIL_SENDER` + `EMAIL_PASSWORD` | Email push |
+| `EMAIL_SENDER` + `RESEND_API_KEY` | Email push (Resend) |
 
 More channels, signatures, email groups, and Markdown-to-image settings are in [Notification Configuration](./full-guide_EN.md#notification-channel-configuration).
 
