@@ -4248,7 +4248,40 @@ class GeminiAnalyzer:
 | 三大法人合计 | {institution_data.get('total_net', 'N/A')} | 台股最受关注的筹码信号 |
 | 资料日期 | {institution_data.get('date', 'N/A')} | 来源 {institution_data.get('source', 'N/A')} |
 
-> 三大法人是台股的筹码过滤器（相当于 A 股主力资金/龙虎榜的角色，但口径不同、不可混用）：外资与投信同向净买支持价格、同向净卖压制价格。请据此判断台股筹码结构，不要在有本数据时写“筹码结构：数据缺失”。
+        > 三大法人是台股的筹码过滤器（相当于 A 股主力资金/龙虎榜的角色，但口径不同、不可混用）：外资与投信同向净买支持价格、同向净卖压制价格。请据此判断台股筹码结构，不要在有本数据时写“筹码结构：数据缺失”。
+        """
+
+        # 添加美股机构持仓（yfinance 季度披露口径）— us-only；仅当 institution 区块
+        # status='ok' 且美股字段存在时注入，其他市场 not_supported 会跳过，严格 additive。
+        _us_inst_keys = ("institutional_ownership_pct", "insider_ownership_pct", "institutions_count")
+        if (
+            isinstance(institution_block, dict)
+            and institution_block.get("status") == "ok"
+            and isinstance(institution_data, dict)
+            and any(institution_data.get(key) is not None for key in _us_inst_keys)
+            and not all(
+                institution_data.get(key) is not None
+                for key in ("foreign_net", "trust_net", "dealer_net", "total_net")
+            )
+        ):
+            def _fmt_own_pct(value: Any) -> str:
+                return "N/A" if value is None else f"{value:.1f}%"
+
+            def _fmt_inst_count(value: Any) -> str:
+                try:
+                    return f"{int(float(value)):,}"
+                except (TypeError, ValueError):
+                    return "N/A"
+
+            prompt += f"""
+### 美股机构持仓（yfinance，季度披露口径，约 45 天滞后）
+| 指标 | 数值 | 解读说明 |
+|------|------|----------|
+| 机构持有比例 | {_fmt_own_pct(institution_data.get('institutional_ownership_pct'))} | 比例越高，价格越受机构决策影响 |
+| 内部人持有比例 | {_fmt_own_pct(institution_data.get('insider_ownership_pct'))} | 内部人集中度高时注意信息不对称 |
+| 机构家数 | {_fmt_inst_count(institution_data.get('institutions_count'))} | 机构跟踪数量多通常流动性更好 |
+
+> 美股没有「三大法人/龙虎榜」等效数据。机构持仓比例为最近一期季度披露快照，不是当日资金流信号；筹码/资金结构分析引用本数据时必须标注季度口径，不得解读为当日资金流向。
 """
 
         # 添加筹码分布数据

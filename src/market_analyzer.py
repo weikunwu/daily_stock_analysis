@@ -99,7 +99,7 @@ class MarketOverview:
     flat_count: int = 0                 # 平盘家数
     limit_up_count: int = 0             # 涨停家数
     limit_down_count: int = 0           # 跌停家数
-    total_amount: float = 0.0           # 两市成交额（亿元）
+    total_amount: float = 0.0           # 两市成交额（亿元；美股为十亿美元，TickFlow US_Equity 聚合口径）
     # north_flow: float = 0.0           # 北向资金净流入（亿元）- 已废弃，接口不可用
     
     # 板块涨幅榜
@@ -562,11 +562,11 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         # 1. 获取主要指数行情（按 region 切换 A 股/美股）
         overview.indices = self._get_main_indices()
 
-        # 2. 获取涨跌统计（A 股有，美股无等效数据）
+        # 2. 获取涨跌统计（A 股 / 美股宽度，按 profile.has_market_stats 开关）
         if self.profile.has_market_stats:
             self._get_market_statistics(overview)
 
-        # 3. 获取板块涨跌榜（A 股有，美股暂无）
+        # 3. 获取板块涨跌榜（A 股行业+概念；美股为 GICS 行业 ETF 代理口径）
         if self.profile.has_sector_rankings:
             self._get_sector_rankings(overview)
             self._get_concept_rankings(overview)
@@ -624,7 +624,10 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         try:
             logger.info("[大盘] %s action=get_market_stats status=start", self._log_context())
 
-            stats = self.data_manager.get_market_stats(purpose=f"market_review:{self.region}")
+            stats = self.data_manager.get_market_stats(
+                purpose=f"market_review:{self.region}",
+                market=self.region,
+            )
 
             if stats:
                 overview.up_count = stats.get('up_count', 0)
@@ -656,7 +659,9 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         try:
             logger.info("[大盘] %s action=get_sector_rankings status=start", self._log_context())
 
-            top_sectors, bottom_sectors = self.data_manager.get_sector_rankings(5)
+            top_sectors, bottom_sectors = self.data_manager.get_sector_rankings(
+                5, market=self.region
+            )
 
             if top_sectors or bottom_sectors:
                 overview.top_sectors = top_sectors
@@ -675,7 +680,14 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             logger.error("[大盘] %s action=get_sector_rankings status=failed error=%s", self._log_context(), e)
 
     def _get_concept_rankings(self, overview: MarketOverview):
-        """获取概念/题材涨跌榜（fail-open）。"""
+        """获取概念/题材涨跌榜（仅 A 股有概念/题材数据；其他市场跳过，fail-open）。"""
+        if self.region != "cn":
+            logger.info(
+                "[大盘] %s action=get_concept_rankings status=skipped reason=concepts_cn_only region=%s",
+                self._log_context(),
+                self.region,
+            )
+            return
         try:
             logger.info("[大盘] %s action=get_concept_rankings status=start", self._log_context())
 
@@ -1238,15 +1250,20 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if has_stats:
             if lines:
                 lines.append("")
-            lines.extend(
-                [
-                    "| 指标 | 数值 | 观察 |",
-                    "|------|------|------|",
-                    f"| 上涨/下跌/平盘 | {overview.up_count} / {overview.down_count} / {overview.flat_count} | 上涨占比(不含平盘) {up_ratio:.1%} |",
-                    f"| 涨停/跌停 | {overview.limit_up_count} / {overview.limit_down_count} | 涨跌停差 {limit_spread:+d} |",
-                    f"| 两市成交额 | {overview.total_amount:.0f} 亿 | {self._describe_turnover(overview.total_amount)} |",
-                ]
+            stats_table_rows = [
+                "| 指标 | 数值 | 观察 |",
+                "|------|------|------|",
+                f"| 上涨/下跌/平盘 | {overview.up_count} / {overview.down_count} / {overview.flat_count} | 上涨占比(不含平盘) {up_ratio:.1%} |",
+            ]
+            if self.region == "cn":
+                # 美股无涨跌停制度，涨停/跌停行仅 A 股展示
+                stats_table_rows.append(
+                    f"| 涨停/跌停 | {overview.limit_up_count} / {overview.limit_down_count} | 涨跌停差 {limit_spread:+d} |"
+                )
+            stats_table_rows.append(
+                f"| {self._turnover_label(self.region)} | {overview.total_amount:.0f} {self._get_turnover_unit_label()} | {self._describe_turnover(overview.total_amount, self.region)} |"
             )
+            lines.extend(stats_table_rows)
         return "\n".join(lines)
 
     def build_market_light_snapshot(self, overview: MarketOverview) -> Dict[str, Any]:
@@ -1315,10 +1332,11 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if index_changes:
             avg_change = sum(index_changes) / len(index_changes)
             reasons.append(f"主要指数平均涨跌幅 {avg_change:+.2f}%")
-        if overview.limit_up_count or overview.limit_down_count:
+        # 美股无涨跌停制度，涨跌停差仅 A 股适用
+        if self.region == "cn" and (overview.limit_up_count or overview.limit_down_count):
             reasons.append(f"涨跌停差 {overview.limit_up_count - overview.limit_down_count:+d}")
         if not reasons and overview.total_amount:
-            reasons.append(f"成交额 {overview.total_amount:.0f} 亿，{self._describe_turnover(overview.total_amount)}")
+            reasons.append(f"成交额 {overview.total_amount:.0f} {self._get_turnover_unit_label()}，{self._describe_turnover(overview.total_amount, self.region)}")
         if not reasons:
             reasons.append("结构化涨跌数据有限，按可用行情综合判断")
         return reasons[:4]
@@ -1494,8 +1512,17 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
     def _escape_markdown_link_label(value: str) -> str:
         return value.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
 
-    @staticmethod
-    def _describe_turnover(total_amount: float) -> str:
+    def _describe_turnover(self, total_amount: float, region: str = "cn") -> str:
+        """按市场活跃度阈值描述成交额。A 股阈值为亿元（人民币），美股为亿美元。"""
+        if region == "us":
+            # 美股全市场日成交额常态约 300-1500 十亿美元量级（口径与 _get_turnover_unit_label 一致）
+            if total_amount >= 600:
+                return "高活跃度"
+            if total_amount >= 300:
+                return "中等活跃"
+            if total_amount > 0:
+                return "缩量观望"
+            return "暂无数据"
         if total_amount >= 15000:
             return "高活跃度"
         if total_amount >= 9000:
@@ -1503,6 +1530,11 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
         if total_amount > 0:
             return "缩量观望"
         return "暂无数据"
+
+    @staticmethod
+    def _turnover_label(region: str = "cn") -> str:
+        """成交额指标名：A 股为两市成交额，美股为美股成交额。"""
+        return "美股成交额" if region == "us" else "两市成交额"
 
     def _build_market_light_scores(self, overview: MarketOverview) -> Dict[str, Any]:
         """Build the canonical Market Light scores used by reports and alerts."""
@@ -1682,16 +1714,38 @@ Focus on index trend, liquidity, and sector rotation to shape the next-session t
             url_line = f"\n   URL: {url}" if url else ""
             news_text += f"{i}. {title}{meta}\n   {snippet or '-'}{url_line}\n"
         
-        # 按 region 组装市场概况与板块区块（美股/港股/日韩无涨跌家数、板块数据）
+        # 按 region 组装市场概况与板块区块（A 股/美股有涨跌家数与板块数据；港股/日韩暂无）
         stats_block = ""
         sector_block = ""
         data_limits_block = ""
         if review_language == "en":
             if self.profile.has_market_stats:
-                stats_block = f"""## Market Breadth
-- Advancers: {overview.up_count} | Decliners: {overview.down_count} | Flat: {overview.flat_count}
-- Limit-up: {overview.limit_up_count} | Limit-down: {overview.limit_down_count}
-- Turnover: {overview.total_amount:.0f} ({self._get_turnover_unit_label()})"""
+                breadth_empty = (
+                    overview.up_count + overview.down_count + overview.flat_count == 0
+                    and not overview.total_amount
+                )
+                if breadth_empty:
+                    # 数据全缺失（fail-open 空态）：标注数据边界，避免模型把全零当成真实行情
+                    breadth_lines = [
+                        "- Market breadth unavailable: advancers/decliners/turnover were not fetched for this run "
+                        "(missing data, not zero activity)"
+                    ]
+                    if self.region == "us":
+                        breadth_lines.append(
+                            "- US breadth requires TickFlow universe-quotes permission; "
+                            "it will surface automatically once enabled"
+                        )
+                else:
+                    breadth_lines = [
+                        f"- Advancers: {overview.up_count} | Decliners: {overview.down_count} | Flat: {overview.flat_count}",
+                    ]
+                    if self.region == "cn":
+                        # US stocks have no price-limit regime; limit lines are A-share only
+                        breadth_lines.append(
+                            f"- Limit-up: {overview.limit_up_count} | Limit-down: {overview.limit_down_count}"
+                        )
+                    breadth_lines.append(f"- Turnover: {overview.total_amount:.0f} ({self._get_turnover_unit_label()})")
+                stats_block = "## Market Breadth\n" + "\n".join(breadth_lines)
 
             if self.profile.has_sector_rankings:
                 sector_block = f"""## Sector / Theme Performance
@@ -1711,10 +1765,32 @@ Concept lagging: {bottom_concepts_text if bottom_concepts_text else "N/A"}"""
                 data_limits_block = "## Data Limits\n" + "\n".join(data_limit_lines)
         else:
             if self.profile.has_market_stats:
-                stats_block = f"""## 市场概况
-- 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家 | 平盘: {overview.flat_count} 家
-- 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家
-- 两市成交额: {overview.total_amount:.0f} 亿元"""
+                breadth_empty = (
+                    overview.up_count + overview.down_count + overview.flat_count == 0
+                    and not overview.total_amount
+                )
+                if breadth_empty:
+                    # 数据全缺失（fail-open 空态）：标注数据边界，避免模型把全零当成真实行情
+                    stats_lines = [
+                        "- 涨跌家数/成交额汇总：数据缺失（本次未获取到，不代表 0 家上涨 / 0 成交）",
+                    ]
+                    if self.region == "us":
+                        stats_lines.append(
+                            "- 宽度数据缺失：需开通 TickFlow「标的池查询」权限（Starter 及以上），开通后自动恢复"
+                        )
+                else:
+                    stats_lines = [
+                        f"- 上涨: {overview.up_count} 家 | 下跌: {overview.down_count} 家 | 平盘: {overview.flat_count} 家",
+                    ]
+                    if self.region == "cn":
+                        # 美股无涨跌停制度，涨停/跌停行仅 A 股展示
+                        stats_lines.append(
+                            f"- 涨停: {overview.limit_up_count} 家 | 跌停: {overview.limit_down_count} 家"
+                        )
+                    stats_lines.append(
+                        f"- {self._turnover_label(self.region)}: {overview.total_amount:.0f} {self._get_turnover_unit_label()}"
+                    )
+                stats_block = f"## 市场概况\n" + "\n".join(stats_lines)
 
             if self.profile.has_sector_rankings:
                 sector_block = f"""## 板块表现

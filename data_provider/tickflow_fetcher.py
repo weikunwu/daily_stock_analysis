@@ -53,6 +53,7 @@ _CN_MAIN_INDEX_QUOTES = (
     ("000300.SH", "000300", "\u6caa\u6df1300"),
 )
 _CN_UNIVERSE_ID = "CN_Equity_A"
+_US_UNIVERSE_ID = "US_Equity"
 _MAX_SYMBOLS_PER_QUOTE_REQUEST = 5
 _CAPABILITY_NEGATIVE_CACHE_TTL_SECONDS = 900
 _SECTOR_RANKINGS_CACHE_TTL_SECONDS = 300
@@ -1058,7 +1059,92 @@ class TickFlowFetcher(BaseFetcher):
 
         return results or None
 
-    def get_market_stats(self) -> Optional[Dict[str, Any]]:
+    def get_market_stats(self, market: str = "cn") -> Optional[Dict[str, Any]]:
+        """Calculate market breadth from TickFlow universe quotes.
+
+        market="cn"（默认）：A 股涨跌家数统计（含涨跌停统计，行为与旧版一致）。
+        market="us"：TickFlow US_Equity 标的池全量聚合美股涨跌家数；美股无涨跌停
+        制度，limit 计数恒为 0；total_amount 单位为十亿美元（与 MarketAnalyzer
+        的 _get_turnover_unit_label 美股口径一致）。
+        """
+        if (market or "cn").strip().lower() == "us":
+            return self._get_us_market_stats()
+        return self._get_cn_market_stats()
+
+    def _get_us_market_stats(self) -> Optional[Dict[str, Any]]:
+        """Calculate US market breadth from TickFlow US_Equity universe quotes."""
+        client = self._get_client()
+        if client is None:
+            return None
+
+        if not self._capability_available("universe_quotes"):
+            return None
+
+        try:
+            quotes = client.quotes.get(universes=[_US_UNIVERSE_ID])
+            self._mark_capability("universe_quotes", True)
+        except Exception as exc:
+            if self._is_universe_permission_error(exc):
+                self._mark_capability("universe_quotes", False)
+                logger.info(
+                    "[TickFlowFetcher] US universe quotes are not available; no US market stats fallback source"
+                )
+                return None
+            raise
+        if not quotes:
+            logger.warning("[TickFlowFetcher] empty US market stats quotes")
+            return None
+
+        stats = {
+            "up_count": 0,
+            "down_count": 0,
+            "flat_count": 0,
+            "limit_up_count": 0,
+            "limit_down_count": 0,
+            "total_amount": 0.0,
+        }
+        valid_rows = 0
+
+        for quote in quotes:
+            if not quote:
+                continue
+
+            symbol = str(quote.get("symbol") or "").strip().upper()
+            if not symbol.endswith(".US"):
+                continue
+
+            amount = self._safe_float(quote.get("amount"))
+            if amount is not None and amount > 0:
+                # 与 MarketAnalyzer._get_turnover_unit_label() 的美股口径一致：十亿美元
+                stats["total_amount"] += amount / 1e9
+
+            last_price = self._safe_float(quote.get("last_price"))
+            prev_close = self._safe_float(quote.get("prev_close"))
+            if last_price is None or prev_close is None or prev_close <= 0:
+                continue
+
+            valid_rows += 1
+            if last_price > prev_close:
+                stats["up_count"] += 1
+            elif last_price < prev_close:
+                stats["down_count"] += 1
+            else:
+                stats["flat_count"] += 1
+
+        if valid_rows == 0:
+            logger.warning("[TickFlowFetcher] no valid US rows for market stats")
+            return None
+
+        logger.info(
+            "[TickFlowFetcher] US market stats: up=%s down=%s flat=%s amount=%.1f(十亿USD)",
+            stats["up_count"],
+            stats["down_count"],
+            stats["flat_count"],
+            stats["total_amount"],
+        )
+        return stats
+
+    def _get_cn_market_stats(self) -> Optional[Dict[str, Any]]:
         """Calculate A-share market breadth from TickFlow universe quotes."""
         client = self._get_client()
         if client is None:

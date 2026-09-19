@@ -147,5 +147,63 @@ class TestTwInstitutionPrompt(unittest.TestCase):
             self.assertNotIn("三大法人动向", p, data)
 
 
+_US_INST_DATA = {
+    "institutional_ownership_pct": 66.3,
+    "insider_ownership_pct": 1.6,
+    "institutions_count": 7758.0,
+    "source": "yfinance.major_holders",
+}
+
+
+class TestUsInstitutionReportConsumption(unittest.TestCase):
+    """US institution block (yfinance major_holders): prompt injection + notification guard.
+
+    Pins the review contract: US ok data renders the US prompt section only; the tw
+    三大法人 notification table must NOT render an all-N/A table for US ok data.
+    """
+
+    def _prompt(self, fundamental_context):
+        with patch.object(GeminiAnalyzer, "_init_litellm", return_value=None):
+            analyzer = GeminiAnalyzer()
+        context = {
+            "code": "AAPL",
+            "stock_name": "苹果",
+            "date": "2026-06-30",
+            "today": {"close": 337.0, "ma5": 330.0, "ma10": 328.0, "ma20": 320.0},
+            "fundamental_context": fundamental_context,
+        }
+        return analyzer._format_prompt(context, "苹果", news_context=None)
+
+    def test_us_institution_section_injected_when_ok(self):
+        p = self._prompt({"institution": {"status": "ok", "data": dict(_US_INST_DATA)}})
+        self.assertIn("美股机构持仓", p)
+        for token in ("66.3%", "7,758", "季度披露口径"):
+            self.assertIn(token, p)
+
+    def test_us_institution_section_absent_when_not_supported(self):
+        p = self._prompt({"institution": {"status": "not_supported", "data": {}}})
+        self.assertNotIn("美股机构持仓", p)
+
+    def test_tw_record_does_not_inject_us_section(self):
+        p = self._prompt({"institution": {"status": "ok", "data": dict(_INST_REC)}})
+        self.assertNotIn("美股机构持仓", p)
+        self.assertIn("三大法人动向", p)  # tw section still fires
+
+    def _render_flow(self, status, data):
+        svc = NotificationService.__new__(NotificationService)
+        lines = []
+        blocks = {"institution": data, "institution_status": status}
+        svc._append_institutional_flow(lines, blocks, get_report_labels("zh"))
+        return "\n".join(lines)
+
+    def test_us_ok_block_does_not_render_tw_table(self):
+        # US ok data lacks the tw 口径 fields: the 三大法人 table must early-return
+        # (all-N/A guard) instead of rendering a table full of N/A cells.
+        self.assertEqual(self._render_flow("ok", dict(_US_INST_DATA)), "")
+
+    def test_tw_table_still_rendered_for_tw_record(self):
+        out = self._render_flow("ok", dict(_INST_REC))
+        self.assertIn("三大法人动向", out)
+
 if __name__ == "__main__":
     unittest.main()

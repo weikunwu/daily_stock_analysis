@@ -365,10 +365,51 @@ class YfinanceFundamentalAdapter:
             result["belong_boards"] = belong_boards
             result["source_chain"].append("belong_boards:yfinance.info")
 
+        # ---------------- institution block (US only) ----------------
+        # 美股机构持仓（yfinance）：major_holders 提供机构/内部人持有比例与机构家数
+        # （季度披露口径，约 45 天滞后）；major_holders 不可用时回退 info 的
+        # heldPercent* 字段（同一请求内，零额外延迟）。非美商标的（.HK/.T/.KS/.KQ/
+        # .TW/.TWO/.SS/.SZ 等后缀）不取该块，保持 not_supported。
+        _NON_US_SUFFIXES = (".HK", ".T", ".KS", ".KQ", ".TW", ".TWO", ".SS", ".SZ")
+        us_symbol = bool(symbol) and not any(symbol.endswith(suffix) for suffix in _NON_US_SUFFIXES)
+        if us_symbol:
+            institution_payload: Dict[str, Any] = {
+                "institutional_ownership_pct": _ratio_to_pct(info.get("heldPercentInstitutions")),
+                "insider_ownership_pct": _ratio_to_pct(info.get("heldPercentInsiders")),
+                "institutions_count": None,
+                "source": "yfinance",
+            }
+            try:
+                major_holders = ticker.major_holders
+                if major_holders is not None and not major_holders.empty:
+                    def _mh_value(key: str) -> Optional[float]:
+                        try:
+                            return _safe_float(major_holders.loc[key, "Value"])
+                        except Exception:
+                            return None
+
+                    institutions_pct = _ratio_to_pct(_mh_value("institutionsPercentHeld"))
+                    insiders_pct = _ratio_to_pct(_mh_value("insidersPercentHeld"))
+                    if institutions_pct is not None:
+                        institution_payload["institutional_ownership_pct"] = institutions_pct
+                    if insiders_pct is not None:
+                        institution_payload["insider_ownership_pct"] = insiders_pct
+                    institution_payload["institutions_count"] = _mh_value("institutionsCount")
+                    institution_payload["source"] = "yfinance.major_holders"
+            except Exception as exc:
+                result["errors"].append(f"major_holders:{type(exc).__name__}")
+            if any(
+                institution_payload.get(key) is not None
+                for key in ("institutional_ownership_pct", "insider_ownership_pct", "institutions_count")
+            ):
+                result["institution"] = institution_payload
+                result["source_chain"].append("institution:yfinance")
+
         has_content = bool(
             result.get("growth")
             or result.get("earnings")
             or result.get("belong_boards")
+            or result.get("institution")
         )
         result["status"] = "partial" if has_content else "not_supported"
         return result

@@ -18,7 +18,7 @@ import csv
 import logging
 from datetime import datetime
 from io import StringIO
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -33,7 +33,7 @@ from tenacity import (
 
 from .base import BaseFetcher, DataFetchError, STANDARD_COLUMNS, _is_hk_market, is_bse_code
 from .realtime_types import UnifiedRealtimeQuote, RealtimeSource
-from .us_index_mapping import get_us_index_yf_symbol, is_us_stock_code
+from .us_index_mapping import US_GICS_SECTOR_ETFS, get_us_index_yf_symbol, is_us_stock_code
 from .yfinance_fundamental_adapter import _safe_float
 from src.services.market_symbol_utils import get_suffix_market, is_suffix_market_symbol
 
@@ -397,6 +397,79 @@ class YfinanceFetcher(BaseFetcher):
             logger.error(f"[Yfinance] 获取 A 股指数行情失败: {e}")
 
         return None
+
+    def get_sector_rankings(self, n: int = 5) -> Optional[Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]]:
+        """美股 GICS 行业涨跌幅排行（11 个 GICS 行业 ETF 代理口径，YFinance 免费链路）。
+
+        用 GICS 行业 SPDR ETF 的日涨跌幅近似行业当日表现（代理口径，非官方行业指数）：
+        - 单个 ETF 失败不影响其他行业；全部失败或无有效数据时返回 None（fail-open，
+          不中断大盘复盘主流程，与 YFinance 其它能力一致）。
+        - 返回行形如 ``{"name": "Technology", "ticker": "XLK", "change_pct": 1.23}``，
+          与 A 股板块排行 ``{"name", "change_pct"}`` 的行契约保持兼容（附加 ticker 字段）。
+        """
+        try:
+            limit = max(1, int(n))
+        except (TypeError, ValueError):
+            limit = 5
+
+        import yfinance as yf
+
+        symbols = [ticker for ticker, _name in US_GICS_SECTOR_ETFS]
+        name_by_symbol = {ticker: name for ticker, name in US_GICS_SECTOR_ETFS}
+        try:
+            df = yf.download(
+                symbols,
+                period="5d",
+                interval="1d",
+                auto_adjust=False,
+                progress=False,
+            )
+        except Exception as exc:
+            logger.warning(f"[Yfinance] 美股行业 ETF 数据获取失败: {exc}")
+            return None
+        if df is None or getattr(df, "empty", True):
+            logger.warning("[Yfinance] 美股行业 ETF 数据为空")
+            return None
+
+        changes: Dict[str, float] = {}
+        for ticker, _name in US_GICS_SECTOR_ETFS:
+            series = None
+            try:
+                # 多标的下载时列为 MultiIndex (field, ticker)，df["Close"] 返回按标的分组
+                if isinstance(df.columns, pd.MultiIndex):
+                    series = df["Close"][ticker].dropna()
+                else:
+                    series = df[ticker].dropna()
+            except Exception:
+                series = None
+            if series is None or len(series) < 2:
+                logger.debug(f"[Yfinance] 行业 ETF {ticker} 有效数据不足，跳过")
+                continue
+            try:
+                prev_close = float(series.iloc[-2])
+                last_close = float(series.iloc[-1])
+            except (TypeError, ValueError):
+                continue
+            if prev_close <= 0:
+                continue
+            changes[ticker] = (last_close - prev_close) / prev_close * 100.0
+
+        if not changes:
+            logger.warning("[Yfinance] 美股行业 ETF 无有效涨跌幅数据")
+            return None
+
+        top = sorted(changes.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+        bottom = sorted(changes.items(), key=lambda kv: kv[1])[:limit]
+        top_rows = [
+            {"name": name_by_symbol[t], "ticker": t, "change_pct": round(pct, 2)}
+            for t, pct in top
+        ]
+        bottom_rows = [
+            {"name": name_by_symbol[t], "ticker": t, "change_pct": round(pct, 2)}
+            for t, pct in bottom
+        ]
+        logger.info(f"[Yfinance] 美股行业排行获取成功: top={[r['name'] for r in top_rows]}")
+        return top_rows, bottom_rows
 
     def _get_us_main_indices(self, yf) -> Optional[List[Dict[str, Any]]]:
         """获取美股主要指数行情（SPX、IXIC、DJI、VIX），复用 _fetch_yf_ticker_data"""

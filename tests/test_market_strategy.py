@@ -194,7 +194,8 @@ class TestMarketAnalyzerStrategyPrompt(unittest.TestCase):
         analyzer._get_market_statistics(overview)
 
         analyzer.data_manager.get_market_stats.assert_called_once_with(
-            purpose="market_review:hk"
+            purpose="market_review:hk",
+            market="hk",
         )
         self.assertEqual(overview.up_count, 3)
 
