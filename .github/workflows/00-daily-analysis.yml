@@ -4,9 +4,7 @@ on:
   # 定时触发 - 美西周日到周五 17:00（timezone-aware cron：IANA 时区 America/Los_Angeles，
   # 自动处理夏令时/冬令时，全年固定美西 17:00；冬令时不再漂移为 16:00）
   schedule:
-    - cron: '0 17 * * 1-5'
-      timezone: 'America/Los_Angeles'
-    - cron: '0 17 * * 0'
+    - cron: '0 17 * * 0,1-5'
       timezone: 'America/Los_Angeles'
   
   # 手动触发
