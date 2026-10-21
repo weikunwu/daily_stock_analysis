@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - [新功能] 美股大盘复盘补齐市场宽度与行业数据：涨跌家数/成交额聚合走 TickFlow `US_Equity` 标的池（无标的池权限时 fail-open 降级，A 股路径不变）；行业涨跌榜走 11 只 GICS 行业 ETF（YFinance 代理口径）；`US_PROFILE` 开启 `has_market_stats`/`has_sector_rankings`，Market Light 宽度维度与提示词板块对美股生效（无涨跌停制度时相关行自动隐藏）。
 - [新功能] 美股基本面 institution 块接入 yfinance 机构持仓（`major_holders`：机构持有比例/内部人持有比例/机构家数，季度披露口径，约 45 天滞后，fail-open）；分析提示词在数据可用时注入美股机构持仓表（标注季度披露口径、禁止解读为当日资金流）；通知报告侧不加美股结构化表，台股三大法人表不受影响（美股 ok 数据缺口径字段时全 N/A 早退，不会渲染全 N/A 表）。
+- [改进] 每日定时分析 cron 分钟避开整点（`0 17 * * 0-5` → `20 17 * * 0-5`，美西 17:20）：GitHub Actions 整点 cron 拥塞最重，曾导致触发延迟 3-7 小时甚至静默丢弃。
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
 
