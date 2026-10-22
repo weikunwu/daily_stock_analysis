@@ -1,12 +1,15 @@
 name: 每日股票分析
 
 on:
-  # 定时触发 - 美西周日到周五 17:20（timezone-aware cron：IANA 时区 America/Los_Angeles，
-  # 自动处理夏令时/冬令时，全年固定美西 17:20；冬令时不再漂移为 16:00）
-  # 分钟取 20 而非整点 :00——GitHub Actions 整点 cron 拥塞最重，曾导致触发延迟 3-7 小时甚至静默丢弃
+  # 定时触发 - 纯 UTC cron：UTC 周一~周六 00:20（= 美西周日~周五 17:20，夏令时 PDT）。
+  # 不使用 timezone 字段：2026-10 起 timezone-aware cron 疑似调度器侧不触发——同为 schedule 的
+  # stale / network-smoke（纯 UTC cron）在 resync 后均恢复触发，唯带 timezone 的本 workflow
+  # 持续静默丢弃（run 不创建，10-15 起，错开整点亦无效）。
+  # 星期位换算：美西周日 17:20 = UTC 周一 00:20，美西周五 17:20 = UTC 周六 00:20，故为 1-6。
+  # 冬令时（PST，11 月~次年 3 月）期间 UTC 00:20 = 美西 16:20，较原计划提前 1 小时；
+  # 届时美股（13:00 PST 收盘）与 A 股（前一日收盘）数据均已完整，仅通知到达时间提前。
   schedule:
-    - cron: '20 17 * * 0-5'
-      timezone: 'America/Los_Angeles'
+    - cron: '20 0 * * 1-6'
   
   # 手动触发
   workflow_dispatch:
